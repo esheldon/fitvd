@@ -31,8 +31,6 @@ An example config file
 
 parspace: 'ngmix'
 
-hst_band: null
-
 weight_type: 'circular-mask'
 
 fofs:
