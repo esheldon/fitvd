@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+"""
+send in DES meds files for this
+"""
+
+import argparse
+import fitvd
+import meds
+import yaml
+import fitsio
+import numpy as np
+import esutil as eu
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--conf',required=True)
+parser.add_argument('--plot',required=True)
+parser.add_argument('--output',required=True)
+parser.add_argument('meds')
+
+parser.add_argument('--plot-only',action='store_true')
+
+def main():
+    args=parser.parse_args()
+    assert 'meds' not in args.output
+
+    conf = fitvd.files.read_yaml(args.conf)
+    fof_conf = conf['fofs']
+
+    print('loading:',args.meds)
+
+    m = fitvd.files.MEDSPSFEx(args.meds)
+
+    if args.plot_only:
+        fofs=fitsio.read(args.output, ext='fofs')
+    else:
+        # convert to arcsec
+        radcol = fof_conf['radius_column']
+        if 'arcsec' not in radcol:
+            print('converting radius to arcsec')
+            tobs = m.get_obs(0,0)
+            scale = tobs.jacobian.scale
+            rad = m[radcol]*scale
+            m._cat[radcol] = rad
+
+        print('getting fof groups')
+        nbr_data, fofs = fitvd.fofs.get_fofs(
+            m,
+            fof_conf,
+        )
+        print('writing:',args.output)
+        with fitsio.FITS(args.output,'rw',clobber=True) as fits:
+            fits.write(fofs,extname='fofs')
+            fits.write(nbr_data,extname='nbrs')
+
+    fitvd.fofs.plot_fofs(
+        m,
+        fofs,
+        plotfile=args.plot,
+        width=4000,
+        fof_type='filled circle',
+        fof_size=0.2,
+    )
+
+if __name__=='__main__':
+    main()
+ 

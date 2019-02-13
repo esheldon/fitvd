@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+import fitcosmos
+import argparse
+
+parser=argparse.ArgumentParser()
+#parser.add_argument('--system',default='wq',required=True)
+parser.add_argument('--run-config',required=True)
+parser.add_argument('--fit-config',required=True)
+parser.add_argument('meds',nargs='+')
+
+parser.add_argument("--loglevel", default='info',
+                  help=("logging level"))
+
+def main():
+    args=parser.parse_args()
+
+    fitcosmos.util.setup_logging(args.loglevel)
+
+    maker=fitcosmos.batch.FoFBatch(args)
+    maker.go()
+
+if __name__=='__main__':
+    main()
+ 

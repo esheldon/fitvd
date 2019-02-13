@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+
+import fitvd
+import argparse
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--system',default='wq',required=True)
+parser.add_argument('--run-config',required=True)
+parser.add_argument('--fit-config',required=True)
+parser.add_argument('--missing',action='store_true')
+parser.add_argument('--verify',action='store_true')
+parser.add_argument('meds',nargs='+')
+
+parser.add_argument('--model-pars',
+                    help='input model pars when doing flux only fitting')
+parser.add_argument('--offsets', help='offsets for the bands')
+
+parser.add_argument("--loglevel", default='info',
+                  help=("logging level"))
+
+def main():
+    args=parser.parse_args()
+
+    fitvd.util.setup_logging(args.loglevel)
+
+    if args.system=='wq':
+        maker=fitvd.batch.WQBatch(args)
+    elif args.system=='shell':
+        maker=fitvd.batch.ShellBatch(args)
+    elif args.system=='condor':
+        maker=fitvd.batch.CondorBatch(args)
+    else:
+        raise ValueError('system should be "wq" or "shell"')
+
+    maker.go()
+
+if __name__=='__main__':
+    main()
+ 
