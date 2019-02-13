@@ -4,7 +4,7 @@ Fit DES and video data to models using the MOF deblender
 Examples
 =========
 
-```python
+```bash
 
 config=fitvd-01.yaml
 
