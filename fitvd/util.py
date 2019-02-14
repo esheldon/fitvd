@@ -96,8 +96,8 @@ def get_trials_per_job_mpi(njobs, ntrials):
 def get_masked_frac_sums(obs):
     weight = obs.weight
     wmasked = np.where(weight <= 0.0)
-    nmasked += wmasked[0].size
-    npix += weight.size
+    nmasked = wmasked[0].size
+    npix = weight.size
 
     return npix, nmasked
 

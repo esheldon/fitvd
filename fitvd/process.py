@@ -125,23 +125,27 @@ class Processor(object):
 
         mf = self.config['max_maskfrac']
         ok=True
-        for obslist in mbobs:
+        for band,obslist in enumerate(mbobs):
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
 
-            for obs in obslist:
+            for epoch,obs in enumerate(obslist):
                 npix, nmasked = util.get_masked_frac_sums(obs)
                 maskfrac = nmasked/npix
-                if maskfrac > mf:
+                if maskfrac < mf:
+                    new_obslist.append(obs)
+                else:
                     logger.info(
                         'cutting cutout band %d '
-                        'obs %d for maskfrac: %g' % (band,icut,maskfrac)
+                        'epoch %d for maskfrac: %g' % (band,epoch,maskfrac)
                     )
-                    new_obslist.append(obs)
 
             if len(new_obslist) == 0:
                 logger.info('no cutouts left for band %d' % band)
                 ok=False
+
+            new_mbobs.append(obslist)
+
 
         return new_mbobs, ok
 
@@ -471,9 +475,9 @@ class Processor(object):
                 if 'arcsec' not in radcol:
                     scale = m.get_obs(0,0).jacobian.scale
                     rad = rad*scale
-                    radlist.append( rad )
+                radlist.append( rad )
         
-        assert len(radlist) > 0,'expect radius in one meds at least'
+        assert len(radlist) > 0,'expected radius in one meds at least'
         radius_arcsec = max(radlist)
         radius_arcsec = np.sqrt(radius_arcsec**2 + exrad**2)
 
@@ -636,11 +640,12 @@ class Processor(object):
         self.magzp_refs = []
         for m in self.mb_meds.mlist:
             meta=m.get_meta()
-            if 'magzp_ref' not in meta.dtype.names:
-                logger.info('no magzp ref set, assuming 30.0')
-                magzp_ref=30.0
-            else:
-                magzp_ref = meta['magzp_ref'][0]
+            #if 'magzp_ref' not in meta.dtype.names:
+            #    logger.info('no magzp ref set, assuming 30.0')
+            #    magzp_ref=30.0
+            #else:
+            #    magzp_ref = meta['magzp_ref'][0]
+            magzp_ref = meta['magzp_ref'][0]
             self.magzp_refs.append(magzp_ref)
 
         if self.args.offsets is not None:
