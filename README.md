@@ -107,18 +107,22 @@ Dependencies
 Available in anaconda (I recommend using conda forge)
 -----------------------------------------------------
 
+```
 scipy
 numba
 fitsio
 pyyaml
+```
 
 Not available in anaconda 
 -----------------------------------------------------
 
+```
 esutil (master)
 ngmix (master)
 meds (psfex2 branch)
 psfex (master)
+```
 
 Because of the numba requirement, it is best to work in a conda environment.
 Note esutil, ngmix,
