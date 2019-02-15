@@ -120,10 +120,11 @@ Not available in anaconda
 -----------------------------------------------------
 
 ```
-esutil (master)
-ngmix (master)
-meds (psfex2 branch)
-psfex (master)
-mof (master)
+repo    branch
+esutil  master
+ngmix   master
+meds    psfex2
+psfex   master
+mof     master
 ```
 
