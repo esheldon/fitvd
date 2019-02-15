@@ -35,18 +35,26 @@ fitvd \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_Ks_meds-VIDEO_DEEP.fits.fz
 ```
 
-An example config file
+An example config file.  For more config files see https://github.com/esheldon/fitvd-config
 ```yaml
+
+# this is meant to be run on DES ugrizY and VIDEO JHKs
+# note detband is 2 meaning r band for the size guess
 
 parspace: 'ngmix'
 
+hst_band: null
+
 weight_type: 'circular-mask'
+
+max_maskfrac: 0.45
 
 fofs:
     method: 'radius'
     check_seg: false
 
     # name in meds file, or catalog if method is catalog_radius
+    #radius_column: "iso_radius_arcsec"
     radius_column: "iso_radius"
 
     # factor to multiply radius this happens before clipping to [min_radius,
@@ -58,6 +66,7 @@ fofs:
     # 5 pixels is about 3 sigma for a 1'' FWHM gaussian
     # this happens after the radius_mult is applied
     min_radius_arcsec: 1.0
+    #max_radius_arcsec: null
     max_radius_arcsec: 2.0
 
     # This is added to the radius. This kind of padding makes sense for radii
@@ -73,7 +82,7 @@ mof:
     model: 'bdf'
 
     # for guesses
-    detband: 0
+    detband: 2
    
     priors:
         cen:
@@ -90,7 +99,7 @@ mof:
 
         flux:
             type: 'flat'
-            pars: [-10.0, 1.0e+09]
+            pars: [-1000.0, 1.0e+09]
 
         fracdev:
             type: 'truncated-normal'
@@ -100,14 +109,14 @@ mof:
             maxval: 3.0
 
     psf:
-        model: 'coellip3'
+        ntry: 4
 
-        ntry: 2
+        model: 'em3'
 
-        lm_pars:
-            maxfev: 2000
-            ftol: 1.0e-5
-            xtol: 1.0e-5
+        em_pars:
+            maxiter: 2000
+            tol: 1.0e-4
+
 ```
 
 Dependencies
