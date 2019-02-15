@@ -709,6 +709,15 @@ def _fit_one_psf(obs, pconf):
             pconf['lm_pars'],
         )
 
+    elif 'em' in pconf['model']:
+        ngauss=ngmix.bootstrap.get_em_ngauss(pconf['model'])
+        runner=ngmix.bootstrap.EMRunner(
+            obs,
+            Tguess,
+            ngauss,
+            pconf['em_pars'],
+        )
+
 
     else:
         runner=ngmix.bootstrap.PSFRunner(
