@@ -110,10 +110,12 @@ Available in anaconda (I recommend using conda forge)
 -----------------------------------------------------
 
 ```
-scipy
-numba
-fitsio
-pyyaml
+package   version
+-----------------
+scipy     latest
+numba     0.40 (newer versions have a bug)
+fitsio    latest
+pyyaml    latest
 ```
 
 Not available in anaconda 
