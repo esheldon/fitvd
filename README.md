@@ -129,5 +129,8 @@ ngmix   master
 meds    psfex2
 psfex   master
 mof     master
+
+biggles master (optional for visualization)
+images  master (optional for visualization)
 ```
 
