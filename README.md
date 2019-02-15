@@ -124,5 +124,6 @@ esutil (master)
 ngmix (master)
 meds (psfex2 branch)
 psfex (master)
+mof (master)
 ```
 
