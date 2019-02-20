@@ -329,7 +329,8 @@ class MOFFitter(FitterBase):
             ('dec','f8'),
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
-            ('flagstr','U11'),
+            #('flagstr','U11'),
+            ('flagstr','S11'),
             ('masked_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
@@ -494,7 +495,8 @@ class MOFFitterGS(MOFFitter):
             ('dec','f8'),
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
-            ('flagstr','U11'),
+            #('flagstr','U11'),
+            ('flagstr','S11'),
             ('masked_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
@@ -645,7 +647,8 @@ class MOFFluxFitterGS(MOFFitterGS):
             ('dec','f8'),
             ('fof_id','i8'), # fof id within image
             ('flags','i4'),
-            ('flagstr','U11'),
+            #('flagstr','U11'),
+            ('flagstr','S11'),
             ('masked_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
