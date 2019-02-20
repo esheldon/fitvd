@@ -1,30 +1,30 @@
 # Creating a Docker/Shifter container
- 
+
 
 ## Building the image
 
 ```sh
 $ cd docker
-$ docker build -t eiffl/fitvd:latest .
+$ docker build -t eiffl/fitvd:master .
 ```
 
 ## Pushing the image to docker hub
 
 ```sh
-$ docker push eiffl/fitvd:latest
+$ docker push eiffl/fitvd:master
 ```
 
 
 ## Downloading the image at nersc
 
 ```sh
-$ shifterimg pull eiffl/fitvd:latest
+$ shifterimg pull eiffl/fitvd:master
 ```
 
 ## Running fitvd inside shifter at NERSC
 
 ```sh
-$ salloc -N 1 -q interactive -C haswell -t03:00:00 -L SCRATCH --image=eiffl/fitvd:latest
+$ salloc -N 1 -q interactive -C haswell -t03:00:00 -L SCRATCH --image=eiffl/fitvd:master
 $ shifter fitvd-make-fofs \
     --conf=$config \
     --plot=fofs.png \
