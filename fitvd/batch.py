@@ -19,6 +19,62 @@ from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
+class CollateBatchBase(dict):
+    def __init__(self, args):
+        self.args=args
+
+        bname=os.path.basename(self.args.run_config)
+        self['run'] = bname.replace('.yaml','')
+
+        self._make_dirs()
+
+    def _make_dirs(self):
+        dirs = [
+            files.get_script_dir(self['run']),
+            files.get_collated_dir(self['run']),
+        ]
+        for d in dirs:
+            try:
+                os.makedirs(d)
+            except:
+                pass
+
+class ShellCollateBatch(CollateBatchBase):
+    def go(self):
+        """
+        write the script to collate the files
+        """
+
+        text=_collate_script_template % {
+            'run': self['run'],
+            'n':self.args.n,
+        }
+
+        collate_script=files.get_collate_script_path(self['run'])
+        print('writing script:',collate_script)
+        with open(collate_script,'w') as fobj:
+            fobj.write(text)
+        os.system('chmod 755 %s' % collate_script)
+
+class WQCollateBatch(CollateBatchBase):
+    def go(self):
+        """
+        write WQ scripts
+        """
+
+        job_name='%s-collate' % self['run']
+
+        text = _collate_wq_template % {
+            'run': self['run'],
+            'job_name': job_name,
+            'n': self.args.n,
+        }
+        wq_script=files.get_wq_collate_script_path(self['run'])
+        print('writing:',wq_script)
+        with open(wq_script,'w') as fobj:
+            fobj.write(text)
+
+
 class FoFBatchBase(dict):
     def __init__(self, args):
         self.args=args
@@ -376,11 +432,28 @@ class CondorBatch(BatchBase):
 
 
 _collate_script_template=r"""#!/bin/bash
+
 run="%(run)s"
 
-mpirun -hostfile %hostfile% fitvd-collate-mpi \
-    --run-config=$FITVD_CONFIG_DIR/${run}.yaml
+mpirun -n %(n)d fitvd-collate-mpi --run-config=$FITVD_CONFIG_DIR/${run}.yaml
 """
+
+_collate_wq_template=r"""
+command: |
+    . ~/.bashrc
+    source activate cosmos
+
+    run="%(run)s"
+
+    mpirun -hostfile %%hostfile%% fitvd-collate-mpi \
+        --run-config=$FITVD_CONFIG_DIR/${run}.yaml
+
+
+job_name: %(job_name)s
+N: %(n)d
+hostfile: auto
+"""
+
 
 
 _fof_script_template=r"""#!/bin/bash

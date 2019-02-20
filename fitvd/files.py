@@ -111,7 +111,7 @@ def get_script_dir(run):
 
 def get_script_path(run, start, end):
     """
-    directory for scripts
+    chunk processing script
     """
     script_dir=get_script_dir(run)
 
@@ -120,6 +120,26 @@ def get_script_path(run, start, end):
         script_dir,
         fname,
     )
+
+def get_collate_script_path(run):
+    """
+    script to run the collation
+    """
+    script_dir=get_script_dir(run)
+
+    fname = '%s-collate.sh' % run
+    return os.path.join(
+        script_dir,
+        fname,
+    )
+
+def get_wq_collate_script_path(run):
+    """
+    script to run the collation
+    """
+    script = get_collate_script_path(run)
+    return script.replace('.sh','.yaml')
+
 
 def get_fof_script_path(run):
     """
