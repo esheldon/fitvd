@@ -375,6 +375,14 @@ class CondorBatch(BatchBase):
         return fobj
 
 
+_collate_script_template=r"""#!/bin/bash
+run="%(run)s"
+
+mpirun -hostfile %hostfile% fitvd-collate-mpi \
+    --run-config=$FITVD_CONFIG_DIR/${run}.yaml
+"""
+
+
 _fof_script_template=r"""#!/bin/bash
 
 fof_file="%(fof_file)s"

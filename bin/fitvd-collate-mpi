@@ -83,28 +83,6 @@ def main():
                 fits.write(model_fits, extname='model_fits')
                 fits.write(epochs_data, extname='epochs_data')
 
-                """
-                first=True
-                for model_fits, epochs_data, fname in reports:
-                    if first:
-                        fits.write(model_fits, extname='model_fits')
-                        first=False
-                    else:
-                        fits['model_fits'].append(model_fits)
-
-                first=True
-                for model_fits, epochs_data, fname in reports:
-
-                    if epochs_data is not None:
-                        if first:
-                            fits.write(epochs_data, extname='epochs_data')
-                            first=False
-                        else:
-                            fits['epochs_data'].append(epochs_data)
-                    else:
-                        print('epochs data is None for %s' % fname)
-                """
-
     else:
         ship = navy.Ship(get_data)
         ship.go()
