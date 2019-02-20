@@ -298,7 +298,12 @@ class MOFFitter(FitterBase):
 
     def _get_epochs_struct(self):
         dt=self._get_epochs_dtype()
-        return np.zeros(1, dtype=dt)
+        data = np.zeros(1, dtype=dt)
+        data['id'] = -9999
+        data['band'] = -1
+        data['file_id'] = -1
+        data['psf_pars'] = -9999
+        return data
 
     def _get_epochs_output(self, mbobs_list):
         elist=[]

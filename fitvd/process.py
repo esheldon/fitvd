@@ -84,18 +84,26 @@ class Processor(object):
         logger.debug('loading data')
         mbobs_list = self._get_fof_mbobs_list(indices)
         if mbobs_list is None:
-            return None, None
+            output, epochs_data = self._get_empty_output(indices)
+        else:
 
-        if self.args.save or self.args.show:
-            self._doplots(fofid, mbobs_list)
+            if self.args.save or self.args.show:
+                self._doplots(fofid, mbobs_list)
 
-        logger.debug('doing fits')
-        output, epochs_data = self.fitter.go(mbobs_list)
+            logger.debug('doing fits')
+            output, epochs_data = self.fitter.go(mbobs_list)
 
-        if self.args.save or self.args.show:
-            self._doplots_compare_model(fofid, mbobs_list)
+            if self.args.save or self.args.show:
+                self._doplots_compare_model(fofid, mbobs_list)
 
         self._add_extra_outputs(indices, output, fofid)
+
+        return output, epochs_data
+
+    def _get_empty_output(self, indices):
+        nobj = indices.size
+        output = self.fitter._get_struct(nobj)
+        epochs_data = self.fitter._get_epochs_struct()
         return output, epochs_data
 
     def _add_extra_outputs(self, indices, output, fofid):
