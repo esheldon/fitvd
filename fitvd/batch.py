@@ -19,7 +19,7 @@ from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
-class FoFBatch(dict):
+class FoFBatchBase(dict):
     def __init__(self, args):
         self.args=args
 
@@ -48,7 +48,6 @@ class FoFBatch(dict):
             'plot_file':plot_file,
             'fit_config':self.args.fit_config,
             'meds_files':self.meds_files,
-            'extra_psf_fwhm': fit_conf['fofs']['extra_psf_fwhm_arcsec']
         }
 
         fof_script=files.get_fof_script_path(self['run'])
@@ -68,6 +67,30 @@ class FoFBatch(dict):
             except:
                 pass
 
+class ShellFoFBatch(FoFBatchBase):
+    pass
+
+class WQFoFBatch(FoFBatchBase):
+    def go(self):
+        """
+        write WQ scripts
+        """
+        # this will write the basic script
+        super(WQFoFBatch,self).go()
+
+        # now write the submit script
+        fof_script=files.get_fof_script_path(self['run'])
+
+        job_name='%s-make-fofs' % self['run']
+
+        text = _wq_template % {
+            'script': fof_script,
+            'job_name': job_name,
+        }
+        wq_script=files.get_wq_fof_script_path(self['run'])
+        print('writing:',wq_script)
+        with open(wq_script,'w') as fobj:
+            fobj.write(text)
 
 class BatchBase(dict):
     def __init__(self, args):
@@ -358,10 +381,8 @@ fof_file="%(fof_file)s"
 plot_file="%(plot_file)s"
 config_file="%(fit_config)s"
 meds_files="%(meds_files)s"
-extra_psf_fwhm="%(extra_psf_fwhm)f"
 
-fitcosmos-make-fofs \
-    --extra-psf-fwhm=$extra_psf_fwhm \
+fitvd-make-fofs \
     --conf=$config_file \
     --plot=$plot_file \
     --output=$fof_file \
@@ -398,7 +419,7 @@ logfile="%(logfile)s"
 logbase=$(basename $logfile)
 tmplog=$tmpdir/$logbase
 
-fitcosmos \
+fitvd \
     --seed=$seed \
     --config=$config \
     --output=$output \
@@ -474,7 +495,7 @@ tmplog=$tmpdir/$logbase
 
 meds="%(meds_files)s"
 
-fitcosmos \
+fitvd \
     --seed=$seed \
     --config=$config \
     --output=$output \

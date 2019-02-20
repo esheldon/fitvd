@@ -133,6 +133,14 @@ def get_fof_script_path(run):
         fname,
     )
 
+def get_wq_fof_script_path(run):
+    """
+    directory for scripts
+    """
+    script = get_fof_script_path(run)
+    return script.replace('.sh','.yaml')
+
+
 
 def get_wq_path(run, start, end):
     """
