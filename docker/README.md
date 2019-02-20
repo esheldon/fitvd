@@ -5,26 +5,26 @@
 
 ```sh
 $ cd docker
-$ docker build -t eiffl/fitvd:master .
+$ docker build -t eiffl/fitvd:latest .
 ```
 
 ## Pushing the image to docker hub
 
 ```sh
-$ docker push eiffl/fitvd:master
+$ docker push eiffl/fitvd:latest
 ```
 
 
-## Downloading the image at nersc
+## Downloading the image at NERSC
 
 ```sh
-$ shifterimg pull eiffl/fitvd:master
+$ shifterimg pull eiffl/fitvd:latest
 ```
 
 ## Running fitvd inside shifter at NERSC
 
 ```sh
-$ salloc -N 1 -q interactive -C haswell -t03:00:00 -L SCRATCH --image=eiffl/fitvd:master
+$ salloc -N 1 -q interactive -C haswell -t03:00:00 -L SCRATCH --image=eiffl/fitvd:latest
 $ shifter fitvd-make-fofs \
     --conf=$config \
     --plot=fofs.png \
