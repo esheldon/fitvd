@@ -146,15 +146,16 @@ Not available in anaconda
 -----------------------------------------------------
 
 ```
-repo    branch
---------------
+repo    branch/tag
+------------------
 esutil  master
-ngmix   master
-meds    psfex2
-psfex   master
-mof     master
+ngmix   v1.2.1
+meds    v0.9.6
+psfex   v0.4.0
+mof     v0.9.0
 
-biggles master (optional for visualization)
-images  master (optional for visualization)
+# optional for visualization
+biggles latest (use pip install biggles; depends on plotutils libplot-dev)
+images  master (https://github.com/esheldon/images)
 ```
 
