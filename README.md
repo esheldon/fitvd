@@ -10,19 +10,25 @@ config=fitvd-01.yaml
 
 # generate the friends-of-friends groups from the r band
 # MEDS file
+
 fitvd-make-fofs \
     --conf=$config \
-    --plot=fofs.png \
-    --output=fofs.fits \
+    --plot=SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP-fofs-01.png \
+    --output=SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP-fofs-01.fits \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP.fits.fz
 
 # An example run over a subset of the FoF groups
+# --seed=8431 seed for this subset of groups.  Use a different seed
+#   for each subset
+# --fofs specifies the FoF group file, created above
+# --start=1000 means to start with FoF group number 1000
+# --end=1009 means the last FoF group to process is number 1009
 
 fitvd \
     --seed=8431 \
     --config=$config \
-    --output=test.fits \
-    --fofs=fofs.fits \
+    --output=SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP-fofs-01-001000-001009.fits \
+    --fofs=SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP-fofs-01.fits \
     --start=1000 --end=1009  \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_u_meds-Y3A2_DEEP.fits.fz \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_g_meds-Y3A2_DEEP.fits.fz \
