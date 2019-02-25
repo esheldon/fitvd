@@ -6,3 +6,4 @@ from . import files
 from . import batch
 from . import vis
 from . import pbar
+from . import desbits

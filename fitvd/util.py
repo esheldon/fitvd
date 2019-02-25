@@ -93,6 +93,22 @@ def get_trials_per_job_mpi(njobs, ntrials):
     """
     return int(round(float(ntrials)/njobs))
 
+
+def zero_bitmask_in_weight(mbobs, flags2zero):
+    """
+    check if the input flags are set in the bmask, if
+    so zero the weight map
+    """
+    for band,obslist in enumerate(mbobs):
+        for epoch,obs in enumerate(obslist):
+            if obs.has_bmask():
+                bmask = obs.bmask
+                w=np.where( (bmask & flags2zero) != 0)
+                if w[0].size > 0:
+                    logging.debug('band %d epoch %d zeroing %d/%d in '
+                                  'weight' % (band,epoch,w[0].size,bmask.size))
+                    obs.weight[w] = 0.0
+
 def get_masked_frac_sums(obs):
     weight = obs.weight
     wmasked = np.where(weight <= 0.0)

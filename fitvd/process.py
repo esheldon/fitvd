@@ -19,6 +19,7 @@ from . import fitting
 from . import files
 from . import vis
 from . import util
+from . import desbits
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,9 @@ class Processor(object):
             mbobs, ok =self._remove_first_epoch(mbobs)
             if not ok:
                 return None
+
+        if self.config['image_flagnames_to_mask'] is not None:
+            util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
 
         mbobs, ok = self._cut_high_maskfrac(mbobs)
         if not ok:
@@ -593,6 +597,13 @@ class Processor(object):
 
         self.config['skip_first_epoch'] = \
             self.config.get('skip_first_epoch',False)
+        self.config['image_flagnames_to_mask'] = \
+            self.config.get('image_flagnames_to_mask',None)
+
+        if self.config['image_flagnames_to_mask'] is not None:
+            self.config['image_flagvals_to_mask'] = desbits.get_flagvals(
+                self.config['image_flagnames_to_mask']
+            )
 
     def _set_fitter(self):
         """
