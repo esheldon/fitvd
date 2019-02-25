@@ -163,6 +163,11 @@ class Processor(object):
             weight_type='weight',
         )
 
+        if self.config['skip_first_epoch']:
+            mbobs, ok =self._remove_first_epoch(mbobs)
+            if not ok:
+                return None
+
         mbobs, ok = self._cut_high_maskfrac(mbobs)
         if not ok:
             return None
@@ -222,12 +227,40 @@ class Processor(object):
             # fudge for ngmix working in surface brightness
             if self.config['parspace']=='ngmix':
                 for obs in obslist:
-                    pixel_scale2 = obs.jacobian.get_det()
+                    pixel_scale2 = obs.jacobian.get_scale()**2
                     pixel_scale4 = pixel_scale2*pixel_scale2
                     obs.image *= 1/pixel_scale2
                     obs.weight *= pixel_scale4
 
         return mbobs
+
+    def _remove_first_epoch(self, mbobs):
+        """
+        remove first "epoch" from all Obslist.  This is usually
+        to skip the coadd
+        """
+        logging.debug('skipping first "epoch"')
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update(mbobs.meta)
+
+        for obslist in mbobs:
+
+            logging.debug('staring nepoch: %d' % len(obslist))
+            if len(obslist)==1:
+                ok=False
+                return None, ok
+
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
+            for obs in obslist[1:]:
+                new_obslist.append(obs)
+
+            logging.debug('ending nepoch: %d' % len(new_obslist))
+            new_mbobs.append(new_obslist)
+
+        ok=True
+        return new_mbobs, ok
 
     def _inject_fake_objects(self, mbobs):
         """
@@ -557,6 +590,9 @@ class Processor(object):
         logger.info('loading config: %s' % self.args.config)
         with open(self.args.config) as fobj:
             self.config = yaml.load(fobj)
+
+        self.config['skip_first_epoch'] = \
+            self.config.get('skip_first_epoch',False)
 
     def _set_fitter(self):
         """
