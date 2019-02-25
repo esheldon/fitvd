@@ -245,7 +245,7 @@ class Processor(object):
 
         for obslist in mbobs:
 
-            logging.debug('staring nepoch: %d' % len(obslist))
+            logging.debug('starting nepoch: %d' % len(obslist))
             if len(obslist)==1:
                 ok=False
                 return None, ok
