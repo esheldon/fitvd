@@ -40,7 +40,13 @@ fitvd \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_H_meds-VIDEO_DEEP.fits.fz \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_Ks_meds-VIDEO_DEEP.fits.fz
 
-# making scripts for FoF generation
+# making a script for FoF generation.
+# Use --system=shell to
+# just write the bash script.  Set --system=condor or wq to
+# also write submit script for those batch systems.
+# make sure the environment variable FITVD_DIR is defined
+
+# see below for an example run config
 
 run_config=run-vd01.yaml
 fitvd-make-batch-fofs \
@@ -48,6 +54,24 @@ fitvd-make-batch-fofs \
     --fit-config=$config \
     --run-config=$run_config \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP.fits.fz
+
+# Write out batch scripts to process the FoF groups in chunks
+# similar to above, using --system=shell just writes out bash
+# scripts
+
+fitvd-make-batch \
+    --system=shell \
+    --fit-config=$config \
+    --run-config=$run_config \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_u_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_g_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_i_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_z_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_Y_meds-Y3A2_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_J_meds-VIDEO_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_H_meds-VIDEO_DEEP.fits.fz \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_Ks_meds-VIDEO_DEEP.fits.fz
 ```
 
 An example config file.  For more config files see https://github.com/esheldon/fitvd-config
