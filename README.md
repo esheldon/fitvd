@@ -192,3 +192,18 @@ biggles latest (use pip install biggles; depends on plotutils libplot-dev)
 images  master (https://github.com/esheldon/images)
 ```
 
+An example run config file. 
+```yaml
+# a global seed; each call to fitvd will have a different seed, and
+# these are generated after first seeding a numpy rng using this seed
+seed: 17624
+# process the MEDS files in chunks of 10 FoF groups
+# a script will be written out for each chunk of 10
+
+chunksize: 10
+
+# for condor
+jobs_per_sub: 100
+```
+
+
