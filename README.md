@@ -49,6 +49,7 @@ fitvd \
 # see below for an example run config
 
 run_config=run-vd01.yaml
+
 fitvd-make-batch-fofs \
     --system=shell \
     --fit-config=$config \
