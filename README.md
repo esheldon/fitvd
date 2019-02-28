@@ -39,6 +39,15 @@ fitvd \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_J_meds-VIDEO_DEEP.fits.fz \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_H_meds-VIDEO_DEEP.fits.fz \
     SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_Ks_meds-VIDEO_DEEP.fits.fz
+
+# making scripts for FoF generation
+
+run_config=run-vd01.yaml
+fitvd-make-batch-fofs \
+    --system=shell \
+    --fit-config=$config \
+    --run-config=$run_config \
+    SN-C3_C28_r3688p01/SN-C3_C28_r3688p01_r_meds-Y3A2_DEEP.fits.fz
 ```
 
 An example config file.  For more config files see https://github.com/esheldon/fitvd-config
