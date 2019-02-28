@@ -1,6 +1,8 @@
 FROM conda/miniconda3:latest
 MAINTAINER EiffL <francois.lanusse@gmail.com>
 
+ENV TMPDIR=/tmp
+
 # Installs additional software dependencies
 RUN apt-get update  && apt-get install -y libplot-dev plotutils git build-essential
 
@@ -21,3 +23,4 @@ RUN pip install biggles \
 
 # Install fitvd
 RUN pip install git+https://github.com/esheldon/fitvd
+
