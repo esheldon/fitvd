@@ -26,6 +26,9 @@ def view_mbobs_list(mbobs_list, **kw):
             row,col = grid(i)
 
             tplt=images.view_mosaic([im, wt], show=False)
+            print('id:',mbobs[0][0].meta['id'])
+
+            tplt.title='id: %d' % mbobs[0][0].meta['id']
             plt[row,col] = tplt
 
         plt.show(width=2000, height=2000*aratio)

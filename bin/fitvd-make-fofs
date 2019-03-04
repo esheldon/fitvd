@@ -10,6 +10,7 @@ import yaml
 import fitsio
 import numpy as np
 import esutil as eu
+import ngmix.medsreaders
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--conf',required=True)
@@ -28,7 +29,8 @@ def main():
 
     print('loading:',args.meds)
 
-    m = fitvd.files.MEDSPSFEx(args.meds)
+    #m = fitvd.files.MEDSPSFEx(args.meds)
+    m = ngmix.medsreaders.NGMixMEDS(args.meds)
 
     if args.plot_only:
         fofs=fitsio.read(args.output, ext='fofs')
