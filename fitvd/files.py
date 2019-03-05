@@ -54,7 +54,7 @@ def get_fof_dir(run):
         'fofs',
     )
 
-def get_split_dir(run):
+def get_split_dir(run, tilename):
     """
     get the split output directory
     """
@@ -62,6 +62,7 @@ def get_split_dir(run):
     return os.path.join(
         run_dir,
         'splits',
+        tilenam,e
     )
 
 def get_script_dir(run):
@@ -114,7 +115,7 @@ def get_split_output(run, tilename, start, end, ext='fits'):
     """
     get the split output file
     """
-    split_dir=get_split_dir(run)
+    split_dir=get_split_dir(run, tilename)
     fname = '%s-%s-%06d-%06d.%s' % (run, tilename, start, end, ext)
     return os.path.join(
         split_dir,
@@ -185,7 +186,7 @@ def get_wq_fof_script_path(run, tilename):
 
 
 
-def get_wq_path(run, tilename, start, end):
+def get_split_wq_path(run, tilename, start, end):
     """
     directory for scripts
     """

@@ -108,7 +108,7 @@ class FoFBatchBase(dict):
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
-            'fit_config':self.args.fit_config,
+            'fit_config':os.path.abspath(self.args.fit_config),
             'meds_file':meds_files[fof_band],
         }
 
@@ -127,10 +127,6 @@ class FoFBatchBase(dict):
             files.get_script_dir(self['run']),
             files.get_fof_dir(self['run']),
         ]
-        #dirs += [
-        #    files.get_split_script_dir(self['run'], tilename)
-        #    for tilename in self.meds_info
-        #]
         for d in dirs:
             try:
                 os.makedirs(d)
@@ -151,7 +147,7 @@ class WQFoFBatch(FoFBatchBase):
         # now write the submit script
         fof_script=files.get_fof_script_path(self['run'], tilename)
 
-        job_name='%s-make-fofs' % self['run']
+        job_name='%s-%s-make-fofs' % (self['run'], tilename)
 
         text = _wq_template % {
             'script': fof_script,
@@ -162,12 +158,11 @@ class WQFoFBatch(FoFBatchBase):
         with open(wq_script,'w') as fobj:
             fobj.write(text)
 
-class BatchBase(dict):
+class ShellBatch(dict):
     def __init__(self, args):
         self.args=args
-        self._load_config()
+        self._load_configs()
 
-        self['fof_file'] = files.get_fof_file(self['run'])
         self['fit_config'] = os.path.abspath(args.fit_config)
         meds_files = [
             os.path.abspath(mf) for mf in self.args.meds
@@ -175,19 +170,26 @@ class BatchBase(dict):
         self.meds_files = ' '.join(meds_files)
 
         self._set_rng()
-        self._load_fofs()
         self._make_dirs()
 
     def go(self):
         """
-        write for all FoF groups
+        write scripts for all tiles
         """
-        num_fofs = self.fofs['fofid'].max()
+        for tilename in self.tile_conf['tilenames']:
+            self.go_tile(tilename)
+
+    def go_tile(self, tilename):
+        """
+        write all FoF groups in the tile
+        """
+        fofs = self._get_fofs(tilename)
+        num_fofs = fofs['fofid'].max()
         fof_splits = split.get_splits(num_fofs, self['chunksize'])
 
         for isplit,fof_split in enumerate(fof_splits):
             logger.info('%s %s' % (isplit,fof_split))
-            self._write_split(isplit, fof_split)
+            self._write_split(tilename, isplit, fof_split)
 
     def _make_dirs(self):
         dirs = [
@@ -195,27 +197,38 @@ class BatchBase(dict):
             files.get_script_dir(self['run']),
             files.get_collated_dir(self['run']),
         ]
+
+        dirs += [
+            files.get_split_script_dir(self['run'], tilename)
+            for tilename in self.meds_info
+        ]
+
         for d in dirs:
             try:
                 os.makedirs(d)
             except:
                 pass
 
-    def _write_split(self,isplit,fof_split):
-        raise NotImplementedError('implement in child class')
+    def _write_split(self, tilename, isplit, fof_split):
+        """
+        just write out the scripts, no submit files
+        """
+        self._write_script(tilename, isplit, fof_split)
 
-    def _write_script(self, isplit, fof_split):
+    def _write_script(self, tilename, isplit, fof_split):
         start, end = fof_split
-        fname=files.get_script_path(self['run'], start, end)
+        fname=files.get_split_script_path(self['run'], tilename, start, end)
 
         output_file = files.get_split_output(
             self['run'],
+            tilename,
             start,
             end,
             ext='fits',
         )
         log_file = files.get_split_output(
             self['run'],
+            tilename,
             start,
             end,
             ext='log',
@@ -257,7 +270,7 @@ class BatchBase(dict):
     def _get_seed(self):
         return self.rng.randint(0,2**31)
 
-    def _load_config(self):
+    def _load_configs(self):
         with open(self.args.run_config) as fobj:
             run_config=yaml.load(fobj)
         self.update(run_config)
@@ -265,43 +278,41 @@ class BatchBase(dict):
         bname=os.path.basename(self.args.run_config)
         self['run'] = bname.replace('.yaml','')
 
-    def _load_fofs(self):
-        #nbrs,fofs=files.load_fofs(self.args.fofs)
-        nbrs,fofs=files.load_fofs(self['fof_file'])
-        self.fofs=fofs
+        self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.meds_info = _get_meds_file_info(self.tile_conf)
+
+
+    def _get_fofs(self, tilename):
+        fof_file = files.get_fof_file(self['run'], tilename)
+        nbrs,fofs=files.load_fofs(fof_file)
+        return fofs
 
 
     def _set_rng(self):
         self.rng = np.random.RandomState(self['seed'])
 
-class ShellBatch(BatchBase):
-    """
-    just write out the scripts, no submit files
-    """
-    def _write_split(self, isplit, fof_split):
-        self._write_script(isplit, fof_split)
-
 class WQBatch(ShellBatch):
     """
     just write out the scripts, no submit files
     """
-    def _write_split(self, isplit, fof_split):
+    def _write_split(self, tilename, isplit, fof_split):
         super(WQBatch,self)._write_split(isplit, fof_split)
-        self._write_wq_script(isplit, fof_split)
+        self._write_wq_script(tilename, isplit, fof_split)
 
-    def _write_wq_script(self, isplit, fof_split):
+    def _write_wq_script(self, tilename, isplit, fof_split):
         """
         write the wq submit script
         """
         args=self.args
         start, end = fof_split
 
-        script_file=files.get_script_path(self['run'], start, end)
-        wq_file=files.get_wq_path(self['run'], start, end)
-        job_name='%s-%06d-%06d' % (self['run'], start, end)
+        script_file=files.get_split_script_path(self['run'], tilename, start, end)
+        wq_file=files.get_split_wq_path(self['run'], tilename, start, end)
+        job_name='%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
 
         output_file = files.get_split_output(
             self['run'],
+            tilename,
             start,
             end,
             ext='fits',
