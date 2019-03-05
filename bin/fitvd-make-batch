@@ -7,9 +7,10 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--system',default='wq',required=True)
 parser.add_argument('--run-config',required=True)
 parser.add_argument('--fit-config',required=True)
+parser.add_argument('--tile-config',required=True)
+
 parser.add_argument('--missing',action='store_true')
 parser.add_argument('--verify',action='store_true')
-parser.add_argument('meds',nargs='+')
 
 parser.add_argument('--model-pars',
                     help='input model pars when doing flux only fitting')

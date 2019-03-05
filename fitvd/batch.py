@@ -164,10 +164,6 @@ class ShellBatch(dict):
         self._load_configs()
 
         self['fit_config'] = os.path.abspath(args.fit_config)
-        meds_files = [
-            os.path.abspath(mf) for mf in self.args.meds
-        ]
-        self.meds_files = ' '.join(meds_files)
 
         self._set_rng()
         self._make_dirs()
@@ -177,12 +173,15 @@ class ShellBatch(dict):
         write scripts for all tiles
         """
         for tilename in self.tile_conf['tilenames']:
+            self.rng.seed( self.tile_seeds[tilename] )
             self.go_tile(tilename)
 
     def go_tile(self, tilename):
         """
         write all FoF groups in the tile
         """
+
+
         fofs = self._get_fofs(tilename)
         num_fofs = fofs['fofid'].max()
         fof_splits = split.get_splits(num_fofs, self['chunksize'])
@@ -290,6 +289,10 @@ class ShellBatch(dict):
 
     def _set_rng(self):
         self.rng = np.random.RandomState(self['seed'])
+        ntiles = len(self.meds_info)
+        self.tile_seeds = {}
+        for tilename in self.meds_info:
+            self.tile_seeds[tilename] = self.rng.randint(low=0, high=2**15)
 
 class WQBatch(ShellBatch):
     """
@@ -349,7 +352,7 @@ class WQBatch(ShellBatch):
         with open(wq_file,'w') as fobj:
             fobj.write(text)
 
-class CondorBatch(BatchBase):
+class CondorBatch(ShellBatch):
     """
     just write out the scripts, no submit files
     """
@@ -359,8 +362,17 @@ class CondorBatch(BatchBase):
         write all the scripts
         """
 
-        self._write_master()
-        num_fofs = self.fofs['fofid'].max()
+        super(CondorBatch,self).go()
+
+    def go_tile(self, tilename):
+        """
+        write condor files for one tile
+        """
+
+        self._write_master(tilename)
+
+        fofs = self._get_fofs(tilename)
+        num_fofs = fofs['fofid'].max()
         fof_splits = split.get_splits(num_fofs, self['chunksize'])
 
         njobs=0
@@ -371,14 +383,14 @@ class CondorBatch(BatchBase):
             if njobs % self['jobs_per_sub']==0:
                 if fobj is not None:
                     fobj.close()
-                fobj = self._open_condor_script(icondor)
+                fobj = self._open_condor_script(tilename, icondor)
                 icondor += 1
 
-            self._write_split(fobj, isplit, fof_split)
+            self._write_split(fobj, tilename, isplit, fof_split)
 
             njobs += 1
 
-    def _write_split(self, fobj, isplit, fof_split):
+    def _write_split(self, fobj, tilename, isplit, fof_split):
         """
         write the lines to the submit file object
         """
@@ -387,22 +399,26 @@ class CondorBatch(BatchBase):
 
         output_file = files.get_split_output(
             self['run'],
+            tilename,
             start,
             end,
             ext='fits',
         )
         log_file = files.get_split_output(
             self['run'],
+            tilename,
             start,
             end,
             ext='log',
         )
 
+        fof_file = files.get_fof_file(self['run'], tilename)
+
         d={}
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
-        d['fof_file'] = self['fof_file']
+        d['fof_file'] = fof_file
         d['start'] = start
         d['end'] = end
         d['logfile'] = os.path.abspath(log_file)
@@ -414,40 +430,49 @@ class CondorBatch(BatchBase):
 
     def _make_dirs(self):
         dirs = [
-            files.get_split_dir(self['run']),
-            files.get_condor_dir(self['run']),
             files.get_collated_dir(self['run']),
         ]
+
+        for tilename in self.meds_info:
+            dirs += [
+                #files.get_split_script_dir(self['run'], tilename),
+                files.get_split_dir(self['run'], tilename),
+                files.get_condor_dir(self['run'], tilename),
+            ]
+
         for d in dirs:
             try:
                 os.makedirs(d)
             except:
                 pass
 
-    def _write_master(self):
+    def _write_master(self,tilename):
         """
         write the master script
         """
+        meds_files = self.meds_info[tilename]
+        meds_files = ' '.join(meds_files)
+
         text = _condor_master_template % {
-            'meds_files':self.meds_files,
+            'meds_files':meds_files,
         }
-        master_script=files.get_condor_master_path(self['run'])
+        master_script=files.get_condor_master_path(self['run'],tilename)
         print('writing master:',master_script)
         with open(master_script,'w') as fobj:
             fobj.write(text)
 
         os.system('chmod 755 %s' % master_script)
 
-    def _open_condor_script(self, icondor):
+    def _open_condor_script(self, tilename, icondor):
         """
         open the condor script
         """
 
-        fname=files.get_condor_script(self['run'], icondor)
+        fname=files.get_condor_script(self['run'], tilename, icondor)
         print('condor script:',fname)
         fobj = open(fname,'w')
 
-        master_script=files.get_condor_master_path(self['run'])
+        master_script=files.get_condor_master_path(self['run'], tilename)
         text = _condor_head % {
             'master_script':master_script,
         }

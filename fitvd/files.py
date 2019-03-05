@@ -62,7 +62,7 @@ def get_split_dir(run, tilename):
     return os.path.join(
         run_dir,
         'splits',
-        tilenam,e
+        tilename,
     )
 
 def get_script_dir(run):
@@ -199,7 +199,7 @@ def get_split_wq_path(run, tilename, start, end):
     )
 
 
-def get_condor_dir(run):
+def get_condor_dir(run, tilename):
     """
     directory for scripts
     """
@@ -207,27 +207,28 @@ def get_condor_dir(run):
     return os.path.join(
         run_dir,
         'condor',
+        tilename,
     )
 
-def get_condor_master_path(run):
+def get_condor_master_path(run, tilename):
     """
     master script for condor
     """
-    condor_dir=get_condor_dir(run)
+    condor_dir=get_condor_dir(run, tilename)
 
-    fname = '%s-master.sh' % run
+    fname = '%s-%s-master.sh' % (run, tilename)
     return os.path.join(
         condor_dir,
         fname,
     )
 
-def get_condor_script(run, icondor):
+def get_condor_script(run, tilename, icondor):
     """
     submit script
     """
-    condor_dir=get_condor_dir(run)
+    condor_dir=get_condor_dir(run, tilename)
 
-    fname = '%s-%06d.condor' % (run, icondor)
+    fname = '%s-%s-%06d.condor' % (run, tilename, icondor)
     return os.path.join(
         condor_dir,
         fname,
@@ -394,6 +395,12 @@ class MEDSPSFEx(ngmix.medsreaders.NGMixMEDS):
         super(MEDSPSFEx,self).__init__(meds_filename)
 
         assert np.all(self['ncutout']==1),'only support a single cutout'
+
+    def has_psf(self):
+        """
+        returns True if psfs are in the file
+        """
+        return True
 
     def get_psf(self, iobj, icutout):
         """
