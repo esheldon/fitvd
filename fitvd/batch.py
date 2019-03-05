@@ -79,44 +79,58 @@ class FoFBatchBase(dict):
     def __init__(self, args):
         self.args=args
 
-        bname=os.path.basename(self.args.run_config)
-        self['run'] = bname.replace('.yaml','')
+        self.run_conf=files.read_yaml(self.args.run_config)
+        self.tile_conf=files.read_yaml(self.args.tile_config)
+
+        self['run'] = files.extract_run_from_config(self.args.run_config)
+        self.meds_info = _get_meds_file_info(self.tile_conf)
 
         self._make_dirs()
 
-        meds_files = [
-            os.path.abspath(mf) for mf in self.args.meds
-        ]
-        self.meds_files = ' '.join(meds_files)
 
     def go(self):
         """
+        write batch files for all tiles
+        """
+        for tilename in self.tile_conf['tilenames']:
+            self.go_tile(tilename)
+
+    def go_tile(self, tilename):
+        """
         write the script to make the fof groups
         """
-        fof_file = files.get_fof_file(self['run'])
+        fof_file = files.get_fof_file(self['run'], tilename)
         plot_file = fof_file.replace('.fits','.png')
 
-        with open(self.args.fit_config) as fobj:
-            fit_conf = yaml.load(fobj)
+        meds_files = self.meds_info[tilename]
 
+        fof_band = self.tile_conf['fof_band']
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
             'fit_config':self.args.fit_config,
-            'meds_files':self.meds_files,
+            'meds_file':meds_files[fof_band],
         }
 
-        fof_script=files.get_fof_script_path(self['run'])
+        fof_script=files.get_fof_script_path(self['run'], tilename)
         print('writing fof script:',fof_script)
         with open(fof_script,'w') as fobj:
             fobj.write(text)
         os.system('chmod 755 %s' % fof_script)
 
+    def _get_meds_files(self, tilename):
+        """
+        get meds files for the given tilename and bands
+        """
     def _make_dirs(self):
         dirs = [
             files.get_script_dir(self['run']),
             files.get_fof_dir(self['run']),
         ]
+        #dirs += [
+        #    files.get_split_script_dir(self['run'], tilename)
+        #    for tilename in self.meds_info
+        #]
         for d in dirs:
             try:
                 os.makedirs(d)
@@ -127,15 +141,15 @@ class ShellFoFBatch(FoFBatchBase):
     pass
 
 class WQFoFBatch(FoFBatchBase):
-    def go(self):
+    def go_tile(self, tilename):
         """
         write WQ scripts
         """
         # this will write the basic script
-        super(WQFoFBatch,self).go()
+        super(WQFoFBatch,self).go_tile(tilename)
 
         # now write the submit script
-        fof_script=files.get_fof_script_path(self['run'])
+        fof_script=files.get_fof_script_path(self['run'], tilename)
 
         job_name='%s-make-fofs' % self['run']
 
@@ -143,7 +157,7 @@ class WQFoFBatch(FoFBatchBase):
             'script': fof_script,
             'job_name': job_name,
         }
-        wq_script=files.get_wq_fof_script_path(self['run'])
+        wq_script=files.get_wq_fof_script_path(self['run'], tilename)
         print('writing:',wq_script)
         with open(wq_script,'w') as fobj:
             fobj.write(text)
@@ -461,13 +475,13 @@ _fof_script_template=r"""#!/bin/bash
 fof_file="%(fof_file)s"
 plot_file="%(plot_file)s"
 config_file="%(fit_config)s"
-meds_files="%(meds_files)s"
+meds_file="%(meds_file)s"
 
 fitvd-make-fofs \
     --conf=$config_file \
     --plot=$plot_file \
     --output=$fof_file \
-    $meds_files
+    $meds_file
 
 """
 
@@ -587,5 +601,31 @@ fitvd \
 
 mv -vf $tmplog $logfile
 """
+
+def _get_meds_file_info(tile_conf):
+    """
+    returns a dict keyed by tilename, holding a list of
+    meds files for each
+    """
+    fi = {}
+
+    des_bands = tile_conf.get('des_bands',[])
+    video_bands = tile_conf.get('video_bands',[])
+
+    for tilename in tile_conf['tilenames']:
+        meds_list = []
+
+        for band in des_bands:
+            fname = tile_conf['des_pattern'] % dict(tilename=tilename, band=band)
+            meds_list.append(fname)
+
+        for band in video_bands:
+            fname = tile_conf['video_pattern'] % dict(tilename=tilename, band=band)
+            meds_list.append(fname)
+
+        fi[tilename] = meds_list
+
+    return fi
+
 
 

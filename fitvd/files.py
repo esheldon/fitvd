@@ -17,6 +17,17 @@ def read_yaml(fname):
 
     return data
 
+def extract_run_from_config(conf_name):
+    """
+    extrac the run id as the part before .yaml
+    """
+    bname=os.path.basename(conf_name)
+    return bname.replace('.yaml','')
+
+#
+# directories
+#
+
 def get_tempdir():
     """
     temporary dir must be defined
@@ -43,40 +54,6 @@ def get_fof_dir(run):
         'fofs',
     )
 
-def get_fof_file(run):
-    """
-    get the directory holding fofs
-    """
-    fof_dir=get_fof_dir(run)
-    fname='%s-fofs.fits' % run
-    return os.path.join(
-        fof_dir,
-        fname,
-    )
-
-
-def get_collated_dir(run):
-    """
-    get the collated directory
-    """
-    run_dir=get_run_dir(run)
-    return os.path.join(
-        run_dir,
-        'collated',
-    )
-
-def get_collated_file(run):
-    """
-    get the collated file name
-    """
-    split_dir=get_collated_dir(run)
-    fname = '%s.fits' % run
-    return os.path.join(
-        split_dir,
-        fname,
-    )
-
-
 def get_split_dir(run):
     """
     get the split output directory
@@ -86,18 +63,6 @@ def get_split_dir(run):
         run_dir,
         'splits',
     )
-
-def get_split_output(run, start, end, ext='fits'):
-    """
-    get the split output file
-    """
-    split_dir=get_split_dir(run)
-    fname = '%s-%06d-%06d.%s' % (run,start, end, ext)
-    return os.path.join(
-        split_dir,
-        fname,
-    )
-
 
 def get_script_dir(run):
     """
@@ -109,13 +74,71 @@ def get_script_dir(run):
         'scripts',
     )
 
-def get_script_path(run, start, end):
+def get_collated_dir(run):
+    """
+    get the collated directory
+    """
+    run_dir=get_run_dir(run)
+    return os.path.join(
+        run_dir,
+        'collated',
+    )
+
+
+
+def get_fof_file(run, tilename):
+    """
+    get the directory holding fofs
+    """
+    fof_dir=get_fof_dir(run)
+    fname='%s-%s-fofs.fits' % (run, tilename)
+    return os.path.join(
+        fof_dir,
+        fname,
+    )
+
+
+def get_collated_file(run, tilename):
+    """
+    get the collated file name
+    """
+    split_dir=get_collated_dir(run)
+    fname = '%s-%s.fits' % (run, tilename)
+    return os.path.join(
+        split_dir,
+        fname,
+    )
+
+
+def get_split_output(run, tilename, start, end, ext='fits'):
+    """
+    get the split output file
+    """
+    split_dir=get_split_dir(run)
+    fname = '%s-%s-%06d-%06d.%s' % (run, tilename, start, end, ext)
+    return os.path.join(
+        split_dir,
+        fname,
+    )
+
+def get_split_script_dir(run, tilename):
+    """
+    directory for scripts
+    """
+    script_dir=get_script_dir(run)
+    return os.path.join(
+        script_dir,
+        tilename,
+    )
+
+
+def get_split_script_path(run, tilename, start, end):
     """
     chunk processing script
     """
-    script_dir=get_script_dir(run)
+    script_dir=get_split_script_dir(run, tilename)
 
-    fname = '%s-%06d-%06d.sh' % (run, start, end)
+    fname = '%s-%s-%06d-%06d.sh' % (run, tilename, start, end)
     return os.path.join(
         script_dir,
         fname,
@@ -141,34 +164,34 @@ def get_wq_collate_script_path(run):
     return script.replace('.sh','.yaml')
 
 
-def get_fof_script_path(run):
+def get_fof_script_path(run, tilename):
     """
     directory for scripts
     """
     script_dir=get_script_dir(run)
 
-    fname = '%s-make-fofs.sh' % run
+    fname = '%s-%s-make-fofs.sh' % (run, tilename)
     return os.path.join(
         script_dir,
         fname,
     )
 
-def get_wq_fof_script_path(run):
+def get_wq_fof_script_path(run, tilename):
     """
     directory for scripts
     """
-    script = get_fof_script_path(run)
+    script = get_fof_script_path(run, tilename)
     return script.replace('.sh','.yaml')
 
 
 
-def get_wq_path(run, start, end):
+def get_wq_path(run, tilename, start, end):
     """
     directory for scripts
     """
-    script_dir=get_script_dir(run)
+    script_dir=get_split_script_dir(run)
 
-    fname = '%s-%06d-%06d.yaml' % (run, start, end)
+    fname = '%s-%s-%06d-%06d.yaml' % (run, tilename, start, end)
     return os.path.join(
         script_dir,
         fname,
