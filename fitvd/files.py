@@ -145,23 +145,23 @@ def get_split_script_path(run, tilename, start, end):
         fname,
     )
 
-def get_collate_script_path(run):
+def get_collate_script_path(run, tilename):
     """
     script to run the collation
     """
     script_dir=get_script_dir(run)
 
-    fname = '%s-collate.sh' % run
+    fname = '%s-collate-%s.sh' % (run, tilename)
     return os.path.join(
         script_dir,
         fname,
     )
 
-def get_wq_collate_script_path(run):
+def get_wq_collate_script_path(run, tilename):
     """
     script to run the collation
     """
-    script = get_collate_script_path(run)
+    script = get_collate_script_path(run, tilename)
     return script.replace('.sh','.yaml')
 
 

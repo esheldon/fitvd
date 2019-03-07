@@ -11,6 +11,7 @@ import argparse
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--run-config',required=True)
+parser.add_argument('--tilename',required=True)
 
 def main():
     args=parser.parse_args()
@@ -34,12 +35,12 @@ def main():
         bname=os.path.basename(args.run_config)
         run = bname.replace('.yaml','')
 
-        output_file=files.get_collated_file(run)
+        output_file=files.get_collated_file(run, args.tilename)
         files.makedir_fromfile(output_file)
 
         print('will write to:',output_file)
 
-        fof_file=files.get_fof_file(run)
+        fof_file=files.get_fof_file(run, args.tilename)
         nbrs,fofs=files.load_fofs(fof_file)
 
         #num_fofs = fofs['fofid'].max()
@@ -50,6 +51,7 @@ def main():
             flist.append( 
                 files.get_split_output(
                     run,
+                    args.tilename,
                     start,
                     end,
                     ext='fits',

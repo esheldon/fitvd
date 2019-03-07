@@ -7,6 +7,9 @@ parser=argparse.ArgumentParser()
 parser.add_argument('-n',type=int,required=True,help='number of cores')
 parser.add_argument('--system',default='wq',required=True)
 parser.add_argument('--run-config',required=True)
+parser.add_argument('--tile-config',required=True)
+parser.add_argument('--conda-env',default='cosmos',
+                    help='for systems that dont propagate your env')
 
 parser.add_argument("--loglevel", default='info',
                   help=("logging level"))

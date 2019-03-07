@@ -19,14 +19,39 @@ from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
-class CollateBatchBase(dict):
+class ShellCollateBatch(dict):
     def __init__(self, args):
         self.args=args
-
-        bname=os.path.basename(self.args.run_config)
-        self['run'] = bname.replace('.yaml','')
+        self._load_configs()
 
         self._make_dirs()
+
+    def go(self):
+        """
+        write scripts for all tiles
+        """
+        for tilename in self.tile_conf['tilenames']:
+            self.go_tile(tilename)
+
+
+    def go_tile(self, tilename):
+        """
+        write the script to collate the files
+        """
+
+        text=_collate_script_template % {
+            'run': self['run'],
+            'n':self.args.n,
+            'tilename':tilename,
+        }
+
+        collate_script=files.get_collate_script_path(self['run'], tilename)
+
+        print('writing script:',collate_script)
+        with open(collate_script,'w') as fobj:
+            fobj.write(text)
+
+        os.system('chmod 755 %s' % collate_script)
 
     def _make_dirs(self):
         dirs = [
@@ -39,38 +64,37 @@ class CollateBatchBase(dict):
             except:
                 pass
 
-class ShellCollateBatch(CollateBatchBase):
-    def go(self):
-        """
-        write the script to collate the files
-        """
+    def _load_configs(self):
 
-        text=_collate_script_template % {
-            'run': self['run'],
-            'n':self.args.n,
-        }
+        with open(self.args.run_config) as fobj:
+            run_config=yaml.load(fobj)
 
-        collate_script=files.get_collate_script_path(self['run'])
-        print('writing script:',collate_script)
-        with open(collate_script,'w') as fobj:
-            fobj.write(text)
-        os.system('chmod 755 %s' % collate_script)
+        self.update(run_config)
 
-class WQCollateBatch(CollateBatchBase):
-    def go(self):
+        bname=os.path.basename(self.args.run_config)
+        self['run'] = bname.replace('.yaml','')
+
+        self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.meds_info = _get_meds_file_info(self.tile_conf)
+
+
+
+class WQCollateBatch(ShellCollateBatch):
+    def go_tile(self, tilename):
         """
         write WQ scripts
         """
 
-        job_name='%s-collate' % self['run']
+        job_name='collate-%s-%s' % (self['run'], tilename)
 
         text = _collate_wq_template % {
             'run': self['run'],
             'job_name': job_name,
             'n': self.args.n,
             'conda_env': self.args.conda_env,
+            'tilename': tilename,
         }
-        wq_script=files.get_wq_collate_script_path(self['run'])
+        wq_script=files.get_wq_collate_script_path(self['run'], tilename)
         print('writing:',wq_script)
         with open(wq_script,'w') as fobj:
             fobj.write(text)
@@ -529,7 +553,9 @@ _collate_script_template=r"""#!/bin/bash
 
 run="%(run)s"
 
-mpirun -n %(n)d fitvd-collate-mpi --run-config=$FITVD_CONFIG_DIR/${run}.yaml
+mpirun -n %(n)d fitvd-collate-mpi \
+    --run-config=$FITVD_CONFIG_DIR/${run}.yaml \
+    --tilename=%(tilename)s
 """
 
 _collate_wq_template=r"""
@@ -537,10 +563,9 @@ command: |
     . ~/.bashrc
     source activate %(conda_env)s
 
-    run="%(run)s"
-
     mpirun -hostfile %%hostfile%% fitvd-collate-mpi \
-        --run-config=$FITVD_CONFIG_DIR/${run}.yaml
+        --run-config=$FITVD_CONFIG_DIR/%(run)s.yaml \
+        --tilename=%(tilename)s
 
 
 job_name: %(job_name)s
