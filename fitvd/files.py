@@ -190,7 +190,7 @@ def get_split_wq_path(run, tilename, start, end):
     """
     directory for scripts
     """
-    script_dir=get_split_script_dir(run)
+    script_dir=get_split_script_dir(run, tilename)
 
     fname = '%s-%s-%06d-%06d.yaml' % (run, tilename, start, end)
     return os.path.join(

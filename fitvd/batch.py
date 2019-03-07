@@ -68,6 +68,7 @@ class WQCollateBatch(CollateBatchBase):
             'run': self['run'],
             'job_name': job_name,
             'n': self.args.n,
+            'conda_env': self.args.conda_env,
         }
         wq_script=files.get_wq_collate_script_path(self['run'])
         print('writing:',wq_script)
@@ -81,6 +82,11 @@ class FoFBatchBase(dict):
 
         self.run_conf=files.read_yaml(self.args.run_config)
         self.tile_conf=files.read_yaml(self.args.tile_config)
+        self['fit_config'] = os.path.abspath(
+            os.path.expandvars(
+                self.run_conf['fit_config']
+            )
+        )
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
         self.meds_info = _get_meds_file_info(self.tile_conf)
@@ -108,7 +114,8 @@ class FoFBatchBase(dict):
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
-            'fit_config':os.path.abspath(self.args.fit_config),
+            #'fit_config':os.path.abspath(self.args.fit_config),
+            'fit_config':self['fit_config'],
             'meds_file':meds_files[fof_band],
         }
 
@@ -152,6 +159,7 @@ class WQFoFBatch(FoFBatchBase):
         text = _wq_template % {
             'script': fof_script,
             'job_name': job_name,
+            'conda_env': self.args.conda_env,
         }
         wq_script=files.get_wq_fof_script_path(self['run'], tilename)
         print('writing:',wq_script)
@@ -163,7 +171,13 @@ class ShellBatch(dict):
         self.args=args
         self._load_configs()
 
-        self['fit_config'] = os.path.abspath(args.fit_config)
+        #self['fit_config'] = os.path.abspath(args.fit_config)
+        self['fit_config'] = os.path.abspath(
+            os.path.expandvars(
+                self['fit_config']
+            )
+        )
+
 
         self._set_rng()
         self._make_dirs()
@@ -183,24 +197,30 @@ class ShellBatch(dict):
 
 
         fofs = self._get_fofs(tilename)
-        num_fofs = fofs['fofid'].max()
-        fof_splits = split.get_splits(num_fofs, self['chunksize'])
+        #num_fofs = fofs['fofid'].max()
+        #fof_splits = split.get_splits(num_fofs, self['chunksize'], self['threshold'])
+        fof_splits = split.get_splits_variable(fofs, self['chunksize'], self['threshold'])
 
         for isplit,fof_split in enumerate(fof_splits):
+
+            start,end=fof_split
+            if self.args.skip_large and start==end:
+                logger.info('skipping large: %s' % start)
+                continue
+
             logger.info('%s %s' % (isplit,fof_split))
             self._write_split(tilename, isplit, fof_split)
 
     def _make_dirs(self):
         dirs = [
-            files.get_split_dir(self['run']),
-            files.get_script_dir(self['run']),
             files.get_collated_dir(self['run']),
         ]
 
-        dirs += [
-            files.get_split_script_dir(self['run'], tilename)
-            for tilename in self.meds_info
-        ]
+        for tilename in self.meds_info:
+            dirs += [
+                files.get_split_script_dir(self['run'], tilename),
+                files.get_split_dir(self['run'], tilename),
+            ]
 
         for d in dirs:
             try:
@@ -238,14 +258,18 @@ class ShellBatch(dict):
                 os.remove(fname)
             return
 
+        fof_file = files.get_fof_file(self['run'], tilename)
+        meds_files = self.meds_info[tilename]
+        meds_files = ' '.join(meds_files)
+
         d={}
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
-        d['fof_file'] = self['fof_file']
+        d['fof_file'] = fof_file
         d['start'] = start
         d['end'] = end
-        d['meds_files'] = self.meds_files
+        d['meds_files'] = meds_files
         d['logfile'] = os.path.abspath(log_file)
 
         if self.args.model_pars is not None:
@@ -299,7 +323,7 @@ class WQBatch(ShellBatch):
     just write out the scripts, no submit files
     """
     def _write_split(self, tilename, isplit, fof_split):
-        super(WQBatch,self)._write_split(isplit, fof_split)
+        super(WQBatch,self)._write_split(tilename, isplit, fof_split)
         self._write_wq_script(tilename, isplit, fof_split)
 
     def _write_wq_script(self, tilename, isplit, fof_split):
@@ -372,14 +396,20 @@ class CondorBatch(ShellBatch):
         self._write_master(tilename)
 
         fofs = self._get_fofs(tilename)
-        num_fofs = fofs['fofid'].max()
-        fof_splits = split.get_splits(num_fofs, self['chunksize'])
+        #num_fofs = fofs['fofid'].max()
+        #fof_splits = split.get_splits(num_fofs, self['chunksize'])
+        fof_splits = split.get_splits_variable(fofs, self['chunksize'], self['threshold'])
 
         njobs=0
         fobj=None
 
         icondor=0
         for isplit,fof_split in enumerate(fof_splits):
+            start,end=fof_split
+            if self.args.skip_large and start==end:
+                logger.info('skipping large: %s' % start)
+                continue
+
             if njobs % self['jobs_per_sub']==0:
                 if fobj is not None:
                     fobj.close()
@@ -491,7 +521,7 @@ mpirun -n %(n)d fitvd-collate-mpi --run-config=$FITVD_CONFIG_DIR/${run}.yaml
 _collate_wq_template=r"""
 command: |
     . ~/.bashrc
-    source activate cosmos
+    source activate %(conda_env)s
 
     run="%(run)s"
 
@@ -568,7 +598,7 @@ mv -vf $tmplog $logfile
 _wq_template=r"""
 command: |
     . ~/.bashrc
-    source activate cosmos
+    source activate %(conda_env)s
     bash %(script)s
 
 job_name: %(job_name)s

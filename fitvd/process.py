@@ -182,7 +182,9 @@ class Processor(object):
         if 'trim_images' in self.config and self.config['trim_images']['trim']:
             mbobs = self._trim_images(mbobs, index)
 
-        self._set_weight(mbobs, index)
+        mbobs, ok = self._set_weight(mbobs, index)
+        if not ok:
+            return None
 
         mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
 
@@ -526,8 +528,15 @@ class Processor(object):
         radius_arcsec = max(radlist)
         radius_arcsec = np.sqrt(radius_arcsec**2 + exrad**2)
 
-        for obslist in mbobs:
-            for obs in obslist:
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+
+        for band,obslist in enumerate(mbobs):
+
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
+            for epoch,obs in enumerate(obslist):
                 imshape=obs.image.shape
                 jac = obs.jacobian
                 scale = jac.scale
@@ -538,16 +547,33 @@ class Processor(object):
                     0:imshape[0],
                     0:imshape[1],
                 ]
-                #cen = (np.array(imshape)-1.0)/2.0
                 cen = jac.cen
                 rows = rows.astype('f4') - cen[0]
                 cols = cols.astype('f4') - cen[1]
                 rad2 = rows**2 + cols**2
                 w=np.where(rad2 > rad_pix2)
+
+                twt = obs.weight.copy()
+
                 if w[0].size > 0:
-                    twt = obs.weight.copy()
                     twt[w] = 0.0
+
+                wgood = np.where(twt > 0.0)
+                if wgood[0].size >= self.config['min_npix']:
                     obs.weight = twt
+                    new_obslist.append(obs)
+                else:
+                    mess='skipping band %d epoch %d for npix %d < %d'
+                    mess = mess % (band,epoch,wgood[0].size,
+                                   self.config['min_npix'])
+                    logger.info(mess)
+
+            if len(new_obslist)==0:
+                return None, False
+
+            new_mbobs.append( new_obslist )
+
+        return new_mbobs, True
 
     def _doplots(self, fofid, mbobs_list):
         plt=vis.view_mbobs_list(mbobs_list, show=self.args.show, weight=True)

@@ -6,8 +6,14 @@ import argparse
 parser=argparse.ArgumentParser()
 parser.add_argument('--system',default='wq',required=True)
 parser.add_argument('--run-config',required=True)
-parser.add_argument('--fit-config',required=True)
+#parser.add_argument('--fit-config',required=True)
 parser.add_argument('--tile-config',required=True)
+
+parser.add_argument('--conda-env',default='cosmos',
+                    help='for systems that dont propagate your env')
+
+parser.add_argument('--skip-large',action='store_true',
+                    help='skip splits that are size 1, corresponding to a large FoF group')
 
 parser.add_argument('--missing',action='store_true')
 parser.add_argument('--verify',action='store_true')

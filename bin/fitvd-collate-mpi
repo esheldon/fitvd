@@ -42,8 +42,9 @@ def main():
         fof_file=files.get_fof_file(run)
         nbrs,fofs=files.load_fofs(fof_file)
 
-        num_fofs = fofs['fofid'].max()
-        fof_splits = split.get_splits(num_fofs, config['chunksize'])
+        #num_fofs = fofs['fofid'].max()
+        #fof_splits = split.get_splits(num_fofs, config['chunksize'])
+        fof_splits = split.get_splits_variable(fofs, config['chunksize'], config['threshold'])
         flist=[]
         for start, end in fof_splits:
             flist.append( 
