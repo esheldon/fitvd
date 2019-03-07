@@ -370,6 +370,7 @@ class WQBatch(ShellBatch):
         d={}
         d['script'] = script_file
         d['job_name'] = job_name
+        d['conda_env'] = args.conda_env
 
         text=_wq_template % d
 
@@ -393,6 +394,8 @@ class CondorBatch(ShellBatch):
         write condor files for one tile
         """
 
+        self._clean_condor_files(tilename)
+
         self._write_master(tilename)
 
         fofs = self._get_fofs(tilename)
@@ -407,7 +410,7 @@ class CondorBatch(ShellBatch):
         for isplit,fof_split in enumerate(fof_splits):
             start,end=fof_split
             if self.args.skip_large and start==end:
-                logger.info('skipping large: %s' % start)
+                #logger.info('skipping large: %s' % start)
                 continue
 
             if njobs % self['jobs_per_sub']==0:
@@ -452,7 +455,7 @@ class CondorBatch(ShellBatch):
         d['start'] = start
         d['end'] = end
         d['logfile'] = os.path.abspath(log_file)
-        d['job_name']='%s-%06d-%06d' % (self['run'], start, end)
+        d['job_name']='%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
 
         job = _condor_job_template % d
 
@@ -492,6 +495,17 @@ class CondorBatch(ShellBatch):
             fobj.write(text)
 
         os.system('chmod 755 %s' % master_script)
+
+    def _clean_condor_files(self, tilename):
+        for icondor in range(1000):
+            cname=files.get_condor_script(self['run'], tilename, icondor)
+            sname=cname+'.submitted'
+            for fname in [cname,sname]:
+                if os.path.exists(fname):
+                    try:
+                        os.remove(fname)
+                    except:
+                        pass
 
     def _open_condor_script(self, tilename, icondor):
         """

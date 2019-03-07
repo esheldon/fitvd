@@ -95,7 +95,7 @@ class Processor(object):
             output, epochs_data = self.fitter.go(mbobs_list)
 
             if self.args.save or self.args.show:
-                self._doplots_compare_model(fofid, mbobs_list)
+                self._doplots_compare_model(fofid, output, mbobs_list)
 
         self._add_extra_outputs(indices, output, fofid)
 
@@ -583,13 +583,15 @@ class Processor(object):
             logger.info('writing: %s' % pltname)
             plt.write(pltname,dpi=300)
 
-    def _doplots_compare_model(self, fofid, mbobs_list):
+    def _doplots_compare_model(self, fofid, output, mbobs_list):
+        args=self.args
         try:
             mof_fitter=self.fitter.get_mof_fitter()
             if mof_fitter is not None:
                 res=mof_fitter.get_result()
                 if res['flags']==0:
-                    vis.compare_models(mbobs_list, mof_fitter)
+                    vis.compare_models(mbobs_list, mof_fitter, fofid, output,
+                                       show=args.show, save=args.save)
         except RuntimeError:
             logger.info('could not render model')
 
