@@ -106,13 +106,13 @@ class FoFBatchBase(dict):
 
         self.run_conf=files.read_yaml(self.args.run_config)
         self.tile_conf=files.read_yaml(self.args.tile_config)
-        self.fit_conf=files.read_yaml(self.args.fit_config)
 
         self['fit_config'] = os.path.abspath(
             os.path.expandvars(
                 self.run_conf['fit_config']
             )
         )
+        self.fit_conf=files.read_yaml(self['fit_config'])
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
         self.meds_info = _get_meds_file_info(self.tile_conf)

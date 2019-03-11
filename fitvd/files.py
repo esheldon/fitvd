@@ -38,7 +38,7 @@ def get_mask_dir():
     bdir = get_fitvd_dir()
     return os.path.join(
         bdir,
-        'star-lists',
+        'masks',
     )
 
 def get_mask_file(tilename):
