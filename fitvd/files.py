@@ -61,61 +61,6 @@ def get_mask_file(tilename):
         'mask-%s.dat' % tilename
     )
 
-def read_mask(fname):
-    """
-    load a mask file
-
-    Parameters
-    ----------
-    tilename: string
-        Either the basic tilename such as SN-C3_C10
-        or with reqnum/attnum SN-C3_C10_r3688p01
-    """
-    print('loading mask from: %s' % fname)
-
-    data={}
-    with open(fname) as fobj:
-        for line in fobj:
-            if '#' in line or '---' in line:
-                continue
-
-            ls = line.split()
-            ind = int( ls[0] )
-            ra = float( ls[1] )
-            dec = float( ls[2] )
-            band = ls[3]
-            rad_arcsec = float(ls[4])
-            
-            if ind in data:
-                radmax = max( rad_arcsec, data[ind]['rad_arcsec'])
-                data[ind]['rad_arcsec'] = radmax
-            else:
-                data[ind] = {
-                    'id': ind,
-                    'ra': ra,
-                    'dec': dec,
-                    'rad_arcsec': rad_arcsec,
-                }
-
-
-    dt = [
-        ('id','i8'),
-        ('ra','f8'),
-        ('dec','f8'),
-        ('rad_arcsec','f8'),
-    ]
-
-    st = np.zeros(len(data), dtype=dt)
-
-    for i,key in enumerate(data):
-        d = data[key] 
-        st['id'][i] = d['id']  
-        st['ra'][i] = d['ra']  
-        st['dec'][i] = d['dec']  
-        st['rad_arcsec'][i] = d['rad_arcsec']  
-
-    return st
-
 
 #
 # directories

@@ -33,6 +33,12 @@ def main():
     #m = fitvd.files.MEDSPSFEx(args.meds)
     m = ngmix.medsreaders.NGMixMEDS(args.meds)
 
+    cat = m.get_cat()
+
+    if args.mask is not None:
+        mask_config = conf.get('mask_config',None)
+        mask = fitvd.masks.Mask(args.mask, mask_config)
+
     if args.plot_only:
         fofs=fitsio.read(args.output, ext='fofs')
     else:
@@ -42,13 +48,14 @@ def main():
             print('converting radius to arcsec')
             tobs = m.get_obs(0,0)
             scale = tobs.jacobian.scale
-            rad = m[radcol]*scale
-            m._cat[radcol] = rad
+            rad = cat[radcol]*scale
+            cat[radcol] = rad
 
         print('getting fof groups')
         nbr_data, fofs = fitvd.fofs.get_fofs(
-            m,
+            cat,
             fof_conf,
+            #mask=mask,
         )
         print('writing:',args.output)
         with fitsio.FITS(args.output,'rw',clobber=True) as fits:

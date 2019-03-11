@@ -5,9 +5,33 @@ import mof
 
 from .pbar import prange
 
-def get_fofs(meds_list, fof_conf):
+def get_fofs(cat, fof_conf, mask=None):
+    """
+    generate FoF groups
+
+    Parameters
+    ----------
+    cat: array with fields
+        Usually the cat from a meds file
+    fof_conf: dict
+        configuration for the FoF group finder
+    mask: mask object
+        e.g. a star mask.  Objects that are masked are put into
+        their own FoF group, and are not allowed to be part
+        of a group with other objects
+    """
+    if mask is not None:
+        is_masked = mask.is_masked(cat['ra'], cat['dec'])
+        n_masked = is_masked.sum()
+        if n_masked > 0:
+            is_unmasked = ~is_masked
+            n_unmasked = is_unmasked.sum()
+            orig_cat = cat
+            cat = orig_cat.copy()
+            cat = cat[is_unmasked]
+
     mn=MEDSNbrs(
-        meds_list,
+        cat,
         fof_conf,
     )
 
@@ -15,6 +39,15 @@ def get_fofs(meds_list, fof_conf):
 
     nf = NbrsFoF(nbr_data)
     fofs = nf.get_fofs()
+
+    if mask is not None and n_masked > 0:
+        # now add extra single-object groups for each masked
+        # object
+        max_fofid = fofs['fofid'].max()
+        masked_fofs = np.zeros(n_masked, dtype=fofs.dtype)
+        masked_fofs['number'] = orig_cat['number'][is_masked]
+        masked_fofs['fofid'] = max_fofid+1+np.arange(n_masked)
+        fofs = eu.numpy_util.combine_arrlist([fofs, masked_fofs])
 
     return nbr_data, fofs
 
@@ -92,10 +125,8 @@ class MEDSNbrs(object):
 
 
     def get_nbrs(self,verbose=True):
-        #data types
         nbrs_data = []
         dtype = [('number','i8'),('nbr_number','i8')]
-        #print("config:",self.conf)
 
         for mindex in prange(self.meds.size):
             nbrs = self.check_mindex(mindex)
@@ -147,7 +178,10 @@ class MEDSNbrs(object):
         if nbr_numbers.size > 0:
             nbr_numbers = np.unique(nbr_numbers)
             inds = nbr_numbers-1
-            q, = np.where((m['orig_start_row'][inds,0] != -9999) & (m['orig_start_col'][inds,0] != -9999))
+            q, = np.where(
+                  (m['orig_start_row'][inds,0] != -9999)
+                & (m['orig_start_col'][inds,0] != -9999)
+            )
             nbr_numbers = nbr_numbers[q]
 
 
@@ -156,52 +190,6 @@ class MEDSNbrs(object):
             nbr_numbers = np.array([-1],dtype=int)
 
         return nbr_numbers
-
-    def check_mindex_old(self,mindex):
-        m = self.meds
-
-        #check that current gal has OK stamp, or return bad crap
-        if (m['orig_start_row'][mindex,0] == -9999
-                or m['orig_start_col'][mindex,0] == -9999):
-
-            nbr_numbers = np.array([-1],dtype=int)
-            return nbr_numbers
-
-        nbr_numbers = []
-
-        #box intersection test and exclude yourself
-        #use buffer of 1/4 of smaller of pair
-        # sze is a diameter
-
-
-        q, = np.where((~((self.l[mindex] > self.r) | (self.r[mindex] < self.l) |
-                            (self.t[mindex] < self.b) | (self.b[mindex] > self.t))) &
-                         (m['number'][mindex] != m['number']) &
-                         (m['orig_start_row'][:,0] != -9999) & (m['orig_start_col'][:,0] != -9999))
-
-        if len(q) > 0:
-            nbr_numbers.extend(list(m['number'][q]))
-
-        #cut weird crap
-        if len(nbr_numbers) > 0:
-            nbr_numbers = np.array(nbr_numbers,dtype=int)
-            nbr_numbers = np.unique(nbr_numbers)
-            inds = nbr_numbers-1
-            q, = np.where((m['orig_start_row'][inds,0] != -9999) & (m['orig_start_col'][inds,0] != -9999))
-            if len(q) > 0:
-                nbr_numbers = list(nbr_numbers[q])
-            else:
-                nbr_numbers = []
-
-        #if have stuff return unique else return -1
-        if len(nbr_numbers) == 0:
-            nbr_numbers = np.array([-1],dtype=int)
-        else:
-            nbr_numbers = np.array(nbr_numbers,dtype=int)
-            nbr_numbers = np.unique(nbr_numbers)
-
-        return nbr_numbers
-
 
 class NbrsFoF(object):
     def __init__(self,nbrs_data):
