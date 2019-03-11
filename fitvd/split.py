@@ -51,6 +51,7 @@ def get_splits_variable(fofs, chunksize, threshold):
 
     fof_splits = []
 
+    nfofs = len(h)
     start=0
     for fofind in range(len(h)):
         if rev[fofind] != rev[fofind+1]:
@@ -62,7 +63,7 @@ def get_splits_variable(fofs, chunksize, threshold):
             if fofsize <= threshold:
                 # continue building this chunk
                 current_size = end-start+1
-                if current_size == chunksize:
+                if current_size == chunksize or fofind == nfofs-1:
                     # we reached our chunksize, store the split
                     fof_splits.append( (start,end) )
                     start=end+1
