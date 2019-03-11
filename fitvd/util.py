@@ -130,4 +130,17 @@ def get_masked_frac(mbobs):
     masked_frac = nmasked/npix
     return masked_frac
 
+def convert_string_to_seed(string):
+    """
+    convert the input string to an integer for use
+    as a seed
+    """
+    import hashlib
+
+    h = hashlib.sha256(string.encode('utf-8')).hexdigest()
+    seed = int(h, base=16) % 2**30 
+
+    logger.info("got seed %d from string %s" % (seed,string))
+
+    return seed
 

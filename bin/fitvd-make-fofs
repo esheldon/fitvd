@@ -3,6 +3,7 @@
 send in DES meds files for this
 """
 
+import os
 import argparse
 import fitvd
 import meds
@@ -55,13 +56,14 @@ def main():
         nbr_data, fofs = fitvd.fofs.get_fofs(
             cat,
             fof_conf,
-            #mask=mask,
+            mask=mask,
         )
         print('writing:',args.output)
         with fitsio.FITS(args.output,'rw',clobber=True) as fits:
             fits.write(fofs,extname='fofs')
             fits.write(nbr_data,extname='nbrs')
 
+    seed = fitvd.util.convert_string_to_seed(os.path.basename(args.meds))
     fitvd.fofs.plot_fofs(
         m,
         fofs,
@@ -69,6 +71,8 @@ def main():
         width=4000,
         fof_type='filled circle',
         fof_size=0.2,
+        minsize=2,
+        seed=seed,
     )
 
 if __name__=='__main__':

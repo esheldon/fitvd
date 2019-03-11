@@ -20,34 +20,22 @@ def get_fofs(cat, fof_conf, mask=None):
         their own FoF group, and are not allowed to be part
         of a group with other objects
     """
+
     if mask is not None:
         is_masked = mask.is_masked(cat['ra'], cat['dec'])
-        n_masked = is_masked.sum()
-        if n_masked > 0:
-            is_unmasked = ~is_masked
-            n_unmasked = is_unmasked.sum()
-            orig_cat = cat
-            cat = orig_cat.copy()
-            cat = cat[is_unmasked]
+    else:
+        is_masked = None
 
     mn=MEDSNbrs(
         cat,
         fof_conf,
+        is_masked=is_masked,
     )
 
     nbr_data = mn.get_nbrs()
 
     nf = NbrsFoF(nbr_data)
     fofs = nf.get_fofs()
-
-    if mask is not None and n_masked > 0:
-        # now add extra single-object groups for each masked
-        # object
-        max_fofid = fofs['fofid'].max()
-        masked_fofs = np.zeros(n_masked, dtype=fofs.dtype)
-        masked_fofs['number'] = orig_cat['number'][is_masked]
-        masked_fofs['fofid'] = max_fofid+1+np.arange(n_masked)
-        fofs = eu.numpy_util.combine_arrlist([fofs, masked_fofs])
 
     return nbr_data, fofs
 
@@ -72,9 +60,14 @@ class MEDSNbrs(object):
         check_seg - use object's seg map to get nbrs in addition to postage stamp overlap
     """
 
-    def __init__(self,meds,conf,cat=None):
+    def __init__(self, meds, conf, is_masked=None):
         self.meds = meds
         self.conf = conf
+
+        if is_masked is None:
+            is_masked = np.zeros(meds.size, dtype=bool)
+        self.is_masked = is_masked
+        self.is_unmasked = ~is_masked
 
         self._init_bounds()
 
@@ -147,7 +140,8 @@ class MEDSNbrs(object):
 
         #check that current gal has OK stamp, or return bad crap
         if (m['orig_start_row'][mindex,0] == -9999
-                or m['orig_start_col'][mindex,0] == -9999):
+                or m['orig_start_col'][mindex,0] == -9999
+                or self.is_masked[mindex]):
 
             nbr_numbers = np.array([-1],dtype=int)
             return nbr_numbers
@@ -181,6 +175,7 @@ class MEDSNbrs(object):
             q, = np.where(
                   (m['orig_start_row'][inds,0] != -9999)
                 & (m['orig_start_col'][inds,0] != -9999)
+                & (self.is_unmasked[inds])
             )
             nbr_numbers = nbr_numbers[q]
 
@@ -276,6 +271,7 @@ def plot_fofs(m,
               minsize=2,
               show=False,
               width=1000,
+              seed=None,
               plotfile=None):
     """
     make an ra,dec plot of the FOF groups
@@ -283,6 +279,7 @@ def plot_fofs(m,
     Only groups with at least two members ares shown
     """
     import random
+    random.seed(seed)
     try:
         import biggles
         import esutil as eu
@@ -307,7 +304,7 @@ def plot_fofs(m,
     else:
         colors=None
 
-    print("unique groups >= 2:",wlarge.size)
+    print("unique groups >= %d: %d" % (minsize,wlarge.size))
     print("largest fof:",hd['hist'].max())
 
     xmin,xmax = x.min(), x.max()
