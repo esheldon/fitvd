@@ -106,6 +106,8 @@ class FoFBatchBase(dict):
 
         self.run_conf=files.read_yaml(self.args.run_config)
         self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.fit_conf=files.read_yaml(self.args.fit_config)
+
         self['fit_config'] = os.path.abspath(
             os.path.expandvars(
                 self.run_conf['fit_config']
@@ -135,12 +137,20 @@ class FoFBatchBase(dict):
         meds_files = self.meds_info[tilename]
 
         fof_band = self.tile_conf['fof_band']
+
+        if 'mask' in self.fit_conf:
+            mask_file = files.get_mask_file(tilename)
+            mask_text = '--mask=%s' % mask_file
+        else:
+            mask_text=''
+
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
             #'fit_config':os.path.abspath(self.args.fit_config),
             'fit_config':self['fit_config'],
             'meds_file':meds_files[fof_band],
+            'mask_text': mask_text,
         }
 
         fof_script=files.get_fof_script_path(self['run'], tilename)
@@ -586,6 +596,7 @@ fitvd-make-fofs \
     --conf=$config_file \
     --plot=$plot_file \
     --output=$fof_file \
+    %(mask_text)s \
     $meds_file
 
 """

@@ -24,6 +24,99 @@ def extract_run_from_config(conf_name):
     bname=os.path.basename(conf_name)
     return bname.replace('.yaml','')
 
+
+def get_fitvd_dir():
+    """
+    base dir, set in FITVD_DIR
+    """
+    return os.environ['FITVD_DIR']
+
+def get_mask_dir():
+    """
+    get the collated file name
+    """
+    bdir = get_fitvd_dir()
+    return os.path.join(
+        bdir,
+        'star-lists',
+    )
+
+def get_mask_file(tilename):
+    """
+    get the collated file name
+
+    Parameters
+    ----------
+    tilename: string
+        Either the basic tilename such as SN-C3_C10
+        or with reqnum/attnum SN-C3_C10_r3688p01
+    """
+    d = get_mask_dir()
+
+    if '_r' in tilename:
+        tilename = '_'.join( tilename.split('_')[0:2] )
+
+    return os.path.join(
+        d,
+        'mask-%s.dat' % tilename
+    )
+
+def read_mask(fname):
+    """
+    load a mask file
+
+    Parameters
+    ----------
+    tilename: string
+        Either the basic tilename such as SN-C3_C10
+        or with reqnum/attnum SN-C3_C10_r3688p01
+    """
+    print('loading mask from: %s' % fname)
+
+    data={}
+    with open(fname) as fobj:
+        for line in fobj:
+            if '#' in line or '---' in line:
+                continue
+
+            ls = line.split()
+            ind = int( ls[0] )
+            ra = float( ls[1] )
+            dec = float( ls[2] )
+            band = ls[3]
+            rad_arcsec = float(ls[4])
+            
+            if ind in data:
+                radmax = max( rad_arcsec, data[ind]['rad_arcsec'])
+                data[ind]['rad_arcsec'] = radmax
+            else:
+                data[ind] = {
+                    'id': ind,
+                    'ra': ra,
+                    'dec': dec,
+                    'rad_arcsec': rad_arcsec,
+                }
+
+
+    dt = [
+        ('id','i8'),
+        ('ra','f8'),
+        ('dec','f8'),
+        ('rad_arcsec','f8'),
+    ]
+
+    st = np.zeros(len(data), dtype=dt)
+
+    for i,key in enumerate(data):
+        d = data[key] 
+        st['id'][i] = d['id']  
+        st['ra'][i] = d['ra']  
+        st['dec'][i] = d['dec']  
+        st['rad_arcsec'][i] = d['rad_arcsec']  
+
+    return st
+
+
 #
 # directories
 #
@@ -38,7 +131,7 @@ def get_run_dir(run):
     """
     get the base run dir
     """
-    bdir=os.environ['FITVD_DIR']
+    bdir = get_fitvd_dir()
     return os.path.join(
         bdir,
         run,
@@ -109,7 +202,6 @@ def get_collated_file(run, tilename):
         split_dir,
         fname,
     )
-
 
 def get_split_output(run, tilename, start, end, ext='fits'):
     """

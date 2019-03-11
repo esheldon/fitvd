@@ -19,6 +19,7 @@ parser.add_argument('--output',required=True)
 parser.add_argument('meds')
 
 parser.add_argument('--plot-only',action='store_true')
+parser.add_argument('--mask', help='use the mask specified in the file')
 
 def main():
     args=parser.parse_args()

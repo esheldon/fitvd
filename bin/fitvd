@@ -18,6 +18,7 @@ parser.add_argument('--offsets',
                     help='input model pars when doing flux only fitting')
 parser.add_argument('meds',nargs='+')
 
+parser.add_argument('--mask', help='use the mask specified in the file')
 
 parser.add_argument("--loglevel", default='info',
                   help=("logging level"))
