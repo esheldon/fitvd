@@ -72,7 +72,7 @@ class FitterBase(dict):
         if conf['model']=='bdf':
             assert 'fracdev' in ppars,"set fracdev prior for bdf model"
             fp = ppars['fracdev']
-            assert 'normal' in fp['type'],'only normal type priors supported for fracdev'
+            #assert 'normal' in fp['type'],'only normal type priors supported for fracdev'
 
             fracdev_prior = self._get_prior_generic(fp)
 
@@ -106,6 +106,10 @@ class FitterBase(dict):
 
         elif ptype == 'two-sided-erf':
             prior=ngmix.priors.TwoSidedErf(*ppars['pars'], rng=self.rng)
+
+        elif ptype == 'sinh':
+            prior=ngmix.priors.Sinh(ppars['mean'], ppars['scale'], rng=self.rng)
+
 
         elif ptype=='normal':
             prior = ngmix.priors.Normal(
