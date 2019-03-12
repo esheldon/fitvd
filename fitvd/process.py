@@ -94,10 +94,10 @@ class Processor(object):
             logger.debug('doing fits')
             output, epochs_data = self.fitter.go(mbobs_list)
 
-            if self.args.save or self.args.show:
-                self._doplots_compare_model(fofid, output, mbobs_list)
 
         self._add_extra_outputs(indices, output, fofid)
+        if mbobs_list is not None and (self.args.save or self.args.show):
+            self._doplots_compare_model(fofid, output, mbobs_list)
 
         return output, epochs_data
 
