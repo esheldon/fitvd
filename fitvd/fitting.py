@@ -128,9 +128,14 @@ class FitterBase(dict):
             )
 
         elif ptype=='log-normal':
+            if 'shift' in ppars:
+                shift=ppars['shift']
+            else:
+                shift=None
             prior = ngmix.priors.LogNormal(
                 ppars['mean'],
                 ppars['sigma'],
+                shift=shift,
                 rng=self.rng,
             )
 
