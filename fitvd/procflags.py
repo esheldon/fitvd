@@ -1,3 +1,5 @@
+import numpy as np
+
 # no attempt was made at all
 NO_ATTEMPT=2**0
 
@@ -47,6 +49,9 @@ FLAG_MAP={
     'too_few_pixels': TOO_FEW_PIXELS,
     TOO_FEW_PIXELS: 'too_few_pixels',
 }
+
+_numorder=[key for key in FLAG_MAP if isinstance(key,int)]
+_numorder.sort()
 
 def get_flag(val):
     """
@@ -99,3 +104,27 @@ def checkflag(val):
     """
 
     assert val in FLAG_MAP,'invalid flag: %s' % val
+
+def printflags(flags, setonly=False):
+    """
+    print the fraction of objects with each flag set
+
+    Parameters
+    ----------
+    flags: array
+        Flags array
+    setonly: bool, optional
+        If set, only print for those flags that are set for
+        some objects
+    """
+    s = '%16s %15s %8s %s' % ('flagname','val','numset','fracset')
+    print(s)
+    print('-'*len(s))
+    for val in _numorder:
+        name = get_flagname(val)
+        w,=np.where(flags & val != 0)
+        if setonly and w.size == 0:
+            continue
+
+        frac = w.size/flags.size
+        print('%16s %13d %8d %g' % (name,val,w.size,frac))
