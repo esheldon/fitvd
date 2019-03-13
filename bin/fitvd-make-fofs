@@ -39,6 +39,8 @@ def main():
     if args.mask is not None:
         mask_config = conf.get('mask_config',None)
         mask = fitvd.masks.Mask(args.mask, mask_config)
+    else:
+        mask=None
 
     if args.plot_only:
         fofs=fitsio.read(args.output, ext='fofs')

@@ -196,6 +196,14 @@ class WQFoFBatch(FoFBatchBase):
             'conda_env': self.args.conda_env,
         }
         wq_script=files.get_wq_fof_script_path(self['run'], tilename)
+
+        wqlog=wq_script + '.wqlog'
+        if os.path.exists(wqlog):
+            try:
+                os.remove(wqlog)
+            except:
+                pass
+
         print('writing:',wq_script)
         with open(wq_script,'w') as fobj:
             fobj.write(text)
@@ -407,6 +415,14 @@ class WQBatch(ShellBatch):
         d['conda_env'] = args.conda_env
 
         text=_wq_template % d
+
+        wqlog=wq_file + '.wqlog'
+        if os.path.exists(wqlog):
+            try:
+                os.remove(wqlog)
+            except:
+                pass
+
 
         with open(wq_file,'w') as fobj:
             fobj.write(text)
