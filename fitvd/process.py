@@ -21,6 +21,7 @@ from . import vis
 from . import util
 from . import desbits
 from . import procflags
+from . import fofs
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class Processor(object):
 
             meta={'magzp_ref': self.magzp_refs[band]}
 
-            radcol = self.config['fofs']['radius_column']
+            radcol = self.config['radius_column']
             cat = m.get_cat()
             if radcol in cat.dtype.names:
                 rad = m[radcol][index]
@@ -513,7 +514,7 @@ class Processor(object):
         exrad=3*sigma
 
         # not all meds files will have the radius column
-        radcol = self.config['fofs']['radius_column']
+        radcol = self.config['radius_column']
         radlist = []
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
@@ -680,8 +681,14 @@ class Processor(object):
         """
         load FoF group data from the input file
         """
-        nbrs, fofs = files.load_fofs(self.args.fofs)
-        self.fofs = fofs
+        if self.args.fofs is None:
+            cat = self.mb_meds.mlist[0].get_cat()
+            logger.info('making singleton fofs')
+            fofst = fofs.make_singleton_fofs(cat)
+        else:
+            nbrs, fofst = files.load_fofs(self.args.fofs)
+
+        self.fofs = fofst
 
     def _set_fof_range(self):
         """

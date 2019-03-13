@@ -13,8 +13,10 @@ import numpy as np
 import yaml
 import logging
 import fitsio
+import meds
 from . import split
 from . import files
+from . import fofs
 from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
@@ -121,6 +123,7 @@ class FoFBatchBase(dict):
             )
         )
         self.fit_conf=files.read_yaml(self['fit_config'])
+        assert 'fofs' in self.fit_conf,'fofs entry must be in fit config'
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
         self.meds_info = _get_meds_file_info(self.run_conf, self.tile_conf)
@@ -227,7 +230,7 @@ class ShellBatch(dict):
                 self['fit_config']
             )
         )
-
+        self.fit_conf = files.read_yaml(self['fit_config'])
 
         self._set_rng()
         self._make_dirs()
@@ -245,11 +248,8 @@ class ShellBatch(dict):
         write all FoF groups in the tile
         """
 
-
-        fofs = self._get_fofs(tilename)
-        #num_fofs = fofs['fofid'].max()
-        #fof_splits = split.get_splits(num_fofs, self['chunksize'], self['threshold'])
-        fof_splits = split.get_splits_variable(fofs, self['chunksize'], self['threshold'])
+        fofst = self._get_fofs(tilename)
+        fof_splits = split.get_splits_variable(fofst, self['chunksize'], self['threshold'])
 
         for isplit,fof_split in enumerate(fof_splits):
 
@@ -308,7 +308,6 @@ class ShellBatch(dict):
                 os.remove(fname)
             return
 
-        fof_file = files.get_fof_file(self['run'], tilename)
         meds_files = self.meds_info[tilename]
         meds_files = ' '.join(meds_files)
 
@@ -316,11 +315,17 @@ class ShellBatch(dict):
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
-        d['fof_file'] = fof_file
+
         d['start'] = start
         d['end'] = end
         d['meds_files'] = meds_files
         d['logfile'] = os.path.abspath(log_file)
+
+        if 'fofs' in self.fit_conf:
+            fof_file = files.get_fof_file(self['run'], tilename)
+            d['fofs_text'] = '--fofs=%s' % fof_file
+        else:
+            d['fofs_text'] = ''
 
         if self.args.model_pars is not None:
             d['model_pars'] = '--model-pars=%s' % self.args.model_pars
@@ -356,9 +361,16 @@ class ShellBatch(dict):
 
 
     def _get_fofs(self, tilename):
-        fof_file = files.get_fof_file(self['run'], tilename)
-        nbrs,fofs=files.load_fofs(fof_file)
-        return fofs
+        if 'fofs' in self.fit_conf:
+            fof_file = files.get_fof_file(self['run'], tilename)
+            nbrs,fofst=files.load_fofs(fof_file)
+        else:
+            meds_file = self.meds_info[tilename][0]
+            m = meds.MEDS(meds_file)
+            cat = m.get_cat()
+            fofst = fofs.make_singleton_fofs(cat)
+            
+        return fofst
 
 
     def _set_rng(self):
@@ -456,10 +468,8 @@ class CondorBatch(ShellBatch):
 
         self._write_master(tilename)
 
-        fofs = self._get_fofs(tilename)
-        #num_fofs = fofs['fofid'].max()
-        #fof_splits = split.get_splits(num_fofs, self['chunksize'])
-        fof_splits = split.get_splits_variable(fofs, self['chunksize'], self['threshold'])
+        fofst = self._get_fofs(tilename)
+        fof_splits = split.get_splits_variable(fofst, self['chunksize'], self['threshold'])
 
         njobs=0
         fobj=None
@@ -503,8 +513,6 @@ class CondorBatch(ShellBatch):
             ext='log',
         )
 
-        fof_file = files.get_fof_file(self['run'], tilename)
-
         d={}
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
@@ -544,8 +552,15 @@ class CondorBatch(ShellBatch):
         meds_files = self.meds_info[tilename]
         meds_files = ' '.join(meds_files)
 
+        if 'fofs' in self.fit_conf:
+            fof_file = files.get_fof_file(self['run'], tilename)
+            fofs_text = '--fofs=%s' % fof_file
+        else:
+            fofs_text = ''
+
         text = _condor_master_template % {
             'meds_files':meds_files,
+            'fofs_text': fofs_text,
         }
         master_script=files.get_condor_master_path(self['run'],tilename)
         print('writing master:',master_script)
@@ -645,7 +660,6 @@ export OMP_NUM_THREADS=1
 seed="%(seed)s"
 output="%(output_file)s"
 config="%(fit_config)s"
-fofs="%(fof_file)s"
 start="%(start)d"
 end="%(end)d"
 meds="%(meds_files)s"
@@ -658,9 +672,9 @@ fitvd \
     --seed=$seed \
     --config=$config \
     --output=$output \
-    --fofs=$fofs \
     --start=$start \
     --end=$end \
+    %(fofs_text)s \
     %(model_pars)s \
     %(offsets)s \
     $meds &> $tmplog
@@ -720,10 +734,9 @@ export OMP_NUM_THREADS=1
 seed="$1"
 output="$2"
 config="$3"
-fofs="$4"
-start="$5"
-end="$6"
-logfile="$7"
+start="$4"
+end="$5"
+logfile="$6"
 
 logbase=$(basename $logfile)
 tmplog=$tmpdir/$logbase
@@ -737,6 +750,7 @@ fitvd \
     --fofs=$fofs \
     --start=$start \
     --end=$end \
+    %(fofs_text)s \
     $meds &> $tmplog
 
 mv -vf $tmplog $logfile

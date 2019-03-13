@@ -39,6 +39,26 @@ def get_fofs(cat, fof_conf, mask=None):
 
     return nbr_data, fofs
 
+def make_singleton_fofs(cat):
+    """
+    generate a fofs file, one object per groups
+
+    Parameters
+    ----------
+    cat: array with fields
+        Should have a 'number' entry
+
+    Returns
+    -------
+    Fof group array with fields, entries 'fofid', 'number'
+
+    """
+    dt = [('fofid','i8'),('number','i8')]
+    fofs = np.zeros(cat.size, dtype=dt)
+    fofs['fofid'] = np.arange(fofs.size)
+    fofs['number'] = cat['number']
+    return fofs
+
 class MEDSNbrs(object):
     """
     Gets nbrs of any postage stamp in the MEDS.
