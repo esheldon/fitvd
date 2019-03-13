@@ -517,7 +517,6 @@ class CondorBatch(ShellBatch):
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
-        d['fof_file'] = fof_file
         d['start'] = start
         d['end'] = end
         d['logfile'] = os.path.abspath(log_file)
@@ -713,7 +712,7 @@ kill_sig        = SIGINT
 
 _condor_job_template="""
 +job_name = "%(job_name)s"
-Arguments = %(seed)d %(output_file)s %(fit_config)s %(fof_file)s %(start)d %(end)d %(logfile)s
+Arguments = %(seed)d %(output_file)s %(fit_config)s %(start)d %(end)d %(logfile)s
 
 Queue
 """
