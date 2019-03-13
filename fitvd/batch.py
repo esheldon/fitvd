@@ -746,7 +746,6 @@ fitvd \
     --seed=$seed \
     --config=$config \
     --output=$output \
-    --fofs=$fofs \
     --start=$start \
     --end=$end \
     %(fofs_text)s \
