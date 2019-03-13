@@ -75,7 +75,7 @@ class ShellCollateBatch(dict):
         self['run'] = bname.replace('.yaml','')
 
         self.tile_conf=files.read_yaml(self.args.tile_config)
-        self.meds_info = _get_meds_file_info(self.tile_conf)
+        self.meds_info = _get_meds_file_info(self, self.tile_conf)
 
 
 
@@ -115,7 +115,7 @@ class FoFBatchBase(dict):
         self.fit_conf=files.read_yaml(self['fit_config'])
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
-        self.meds_info = _get_meds_file_info(self.tile_conf)
+        self.meds_info = _get_meds_file_info(self.run_conf, self.tile_conf)
 
         self._make_dirs()
 
@@ -136,7 +136,7 @@ class FoFBatchBase(dict):
 
         meds_files = self.meds_info[tilename]
 
-        fof_band = self.tile_conf['fof_band']
+        fof_band = self.run_conf['fof_band']
 
         if 'mask' in self.fit_conf:
             mask_file = files.get_mask_file(tilename)
@@ -336,7 +336,7 @@ class ShellBatch(dict):
         self['run'] = bname.replace('.yaml','')
 
         self.tile_conf=files.read_yaml(self.args.tile_config)
-        self.meds_info = _get_meds_file_info(self.tile_conf)
+        self.meds_info = _get_meds_file_info(self, self.tile_conf)
 
 
     def _get_fofs(self, tilename):
@@ -718,15 +718,15 @@ fitvd \
 mv -vf $tmplog $logfile
 """
 
-def _get_meds_file_info(tile_conf):
+def _get_meds_file_info(run_conf, tile_conf):
     """
     returns a dict keyed by tilename, holding a list of
     meds files for each
     """
     fi = {}
 
-    des_bands = tile_conf.get('des_bands',[])
-    video_bands = tile_conf.get('video_bands',[])
+    des_bands = run_conf.get('des_bands',[])
+    video_bands = run_conf.get('video_bands',[])
 
     for tilename in tile_conf['tilenames']:
         meds_list = []
