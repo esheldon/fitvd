@@ -95,6 +95,14 @@ class WQCollateBatch(ShellCollateBatch):
             'tilename': tilename,
         }
         wq_script=files.get_wq_collate_script_path(self['run'], tilename)
+
+        wqlog=wq_script + '.wqlog'
+        if os.path.exists(wqlog):
+            try:
+                os.remove(wqlog)
+            except:
+                pass
+
         print('writing:',wq_script)
         with open(wq_script,'w') as fobj:
             fobj.write(text)

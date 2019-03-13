@@ -1,8 +1,27 @@
+# no attempt was made at all
 NO_ATTEMPT=2**0
+
+# no data was available, e.g. if there
+# were no epochs at all
 NO_DATA=2**1
+
+# No good images were available, e.g. if there was some
+# kind of blacklist used
 IMAGE_FLAGS=2**2
+
+# none of the epochs got a psf fit
 PSF_FAILURE=2**3
+
+# the object/fof fitting failed
 OBJ_FAILURE=2**4
+
+# the masked fraction was too high.  This is checked
+# *before* additional masking is set, e.g. in _set_weight
+HIGH_MASKFRAC=2**5
+
+# Too few pixels available for fitting
+# occurs in the _set_weight method
+TOO_FEW_PIXELS=2**6
 
 FLAG_MAP={
     'ok':0,
@@ -21,6 +40,12 @@ FLAG_MAP={
 
     'obj_failure': OBJ_FAILURE,
     OBJ_FAILURE:'obj_failure',
+
+    'high_maskfrac': HIGH_MASKFRAC,
+    HIGH_MASKFRAC: 'high_maskfrac',
+
+    'too_few_pixels': TOO_FEW_PIXELS,
+    TOO_FEW_PIXELS: 'too_few_pixels',
 }
 
 def get_flag(val):

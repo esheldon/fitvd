@@ -20,6 +20,7 @@ from . import files
 from . import vis
 from . import util
 from . import desbits
+from . import procflags
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +84,11 @@ class Processor(object):
         indices=self.fofs['number'][w]-1
 
         logger.debug('loading data')
-        mbobs_list = self._get_fof_mbobs_list(indices)
-        if mbobs_list is None:
+        mbobs_list, flags = self._get_fof_mbobs_list(indices)
+        if flags != 0:
             output, epochs_data = self._get_empty_output(indices)
+            output['flags'] = flags
+            output['flagstr'] = procflags.get_flagname(flags)
         else:
 
             if self.args.save or self.args.show:
@@ -121,19 +124,20 @@ class Processor(object):
         """
         mbobs_list=[]
         for index in indices:
-            mbobs = self._get_mbobs(index)
-            if mbobs is None:
-                return None
+            mbobs, flags = self._get_mbobs(index)
+            if flags != 0:
+                return None, flags
+
             mbobs_list.append(mbobs)
 
-        return mbobs_list
+        return mbobs_list, 0
 
     def _cut_high_maskfrac(self, mbobs):
         new_mbobs = ngmix.MultiBandObsList()
         new_mbobs.meta.update( mbobs.meta )
 
+        flags = 0
         mf = self.config['max_maskfrac']
-        ok=True
         for band,obslist in enumerate(mbobs):
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
@@ -151,12 +155,11 @@ class Processor(object):
 
             if len(new_obslist) == 0:
                 logger.info('no cutouts left for band %d' % band)
-                ok=False
+                flags = procflags.HIGH_MASKFRAC
 
             new_mbobs.append(obslist)
 
-
-        return new_mbobs, ok
+        return new_mbobs, flags
 
     def _get_mbobs(self, index):
         mbobs=self.mb_meds.get_mbobs(
@@ -165,16 +168,16 @@ class Processor(object):
         )
 
         if self.config['skip_first_epoch']:
-            mbobs, ok =self._remove_first_epoch(mbobs)
-            if not ok:
-                return None
+            mbobs, flags =self._remove_first_epoch(mbobs)
+            if flags != 0:
+                return None, flags
 
         if self.config['image_flagnames_to_mask'] is not None:
             util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
 
-        mbobs, ok = self._cut_high_maskfrac(mbobs)
-        if not ok:
-            return None
+        mbobs, flags = self._cut_high_maskfrac(mbobs)
+        if flags != 0:
+            return None, flags
 
         if 'inject' in self.config and self.config['inject']['do_inject']:
             self._inject_fake_objects(mbobs)
@@ -182,9 +185,9 @@ class Processor(object):
         if 'trim_images' in self.config and self.config['trim_images']['trim']:
             mbobs = self._trim_images(mbobs, index)
 
-        mbobs, ok = self._set_weight(mbobs, index)
-        if not ok:
-            return None
+        mbobs, flags = self._set_weight(mbobs, index)
+        if flags != 0:
+            return None, flags
 
         mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
 
@@ -238,7 +241,7 @@ class Processor(object):
                     obs.image *= 1/pixel_scale2
                     obs.weight *= pixel_scale4
 
-        return mbobs
+        return mbobs, 0
 
     def _remove_first_epoch(self, mbobs):
         """
@@ -253,8 +256,7 @@ class Processor(object):
 
             logging.debug('starting nepoch: %d' % len(obslist))
             if len(obslist)==1:
-                ok=False
-                return None, ok
+                return None, procflags.NO_DATA
 
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
@@ -265,8 +267,7 @@ class Processor(object):
             logging.debug('ending nepoch: %d' % len(new_obslist))
             new_mbobs.append(new_obslist)
 
-        ok=True
-        return new_mbobs, ok
+        return new_mbobs, 0
 
     def _inject_fake_objects(self, mbobs):
         """
@@ -504,7 +505,7 @@ class Processor(object):
         assert self.config['weight_type'] in ('weight','circular-mask')
 
         if self.config['weight_type'] == 'weight':
-            return
+            return mbobs, 0
 
         # extra space around the object
         fwhm=1.5
@@ -569,11 +570,11 @@ class Processor(object):
                     logger.info(mess)
 
             if len(new_obslist)==0:
-                return None, False
+                return None, procflags.TOO_FEW_PIXELS
 
             new_mbobs.append( new_obslist )
 
-        return new_mbobs, True
+        return new_mbobs, 0
 
     def _doplots(self, fofid, mbobs_list):
         plt=vis.view_mbobs_list(mbobs_list, show=self.args.show, weight=True)
