@@ -41,10 +41,16 @@ class ShellCollateBatch(dict):
         write the script to collate the files
         """
 
+        if 'fofs' not in self.fit_conf:
+            meds_text='--meds=%s' % self.meds_info[tilename][0]
+        else:
+            meds_text=''
         text=_collate_script_template % {
             'run': self['run'],
+            'fit_config': self['fit_config'],
             'n':self.args.n,
             'tilename':tilename,
+            'meds_text': meds_text,
         }
 
         collate_script=files.get_collate_script_path(self['run'], tilename)
@@ -70,8 +76,16 @@ class ShellCollateBatch(dict):
 
         with open(self.args.run_config) as fobj:
             run_config=yaml.load(fobj)
-
         self.update(run_config)
+
+        self['fit_config'] = os.path.abspath(
+            os.path.expandvars(
+                self['fit_config']
+            )
+        )
+        with open(self['fit_config']) as fobj:
+            self.fit_conf = yaml.load(fobj)
+
 
         bname=os.path.basename(self.args.run_config)
         self['run'] = bname.replace('.yaml','')
@@ -89,12 +103,19 @@ class WQCollateBatch(ShellCollateBatch):
 
         job_name='collate-%s-%s' % (self['run'], tilename)
 
+        if 'fofs' not in self.fit_conf:
+            meds_text='--meds=%s' % self.meds_info[tilename][0]
+        else:
+            meds_text=''
+
         text = _collate_wq_template % {
             'run': self['run'],
+            'fit_config': self['fit_config'],
             'job_name': job_name,
             'n': self.args.n,
             'conda_env': self.args.conda_env,
             'tilename': tilename,
+            'meds_text': meds_text,
         }
         wq_script=files.get_wq_collate_script_path(self['run'], tilename)
 
@@ -602,7 +623,9 @@ _collate_script_template=r"""#!/bin/bash
 run="%(run)s"
 
 mpirun -n %(n)d fitvd-collate-mpi \
+    %(meds_text)s \
     --run-config=$FITVD_CONFIG_DIR/${run}.yaml \
+    --fit-config=%(fit_config)s \
     --tilename=%(tilename)s
 """
 
@@ -612,7 +635,9 @@ command: |
     source activate %(conda_env)s
 
     mpirun -hostfile %%hostfile%% fitvd-collate-mpi \
+        %(meds_text)s \
         --run-config=$FITVD_CONFIG_DIR/%(run)s.yaml \
+        --fit-config=%(fit_config)s \
         --tilename=%(tilename)s
 
 
