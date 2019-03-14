@@ -2,6 +2,7 @@ import sys
 import logging
 import numpy as np
 import ngmix
+from . import procflags
 
 logger = logging.getLogger(__name__)
 
@@ -99,15 +100,39 @@ def zero_bitmask_in_weight(mbobs, flags2zero):
     check if the input flags are set in the bmask, if
     so zero the weight map
     """
+
+    new_mbobs = ngmix.MultiBandObsList()
+    new_mbobs.meta.update( mbobs.meta )
+
     for band,obslist in enumerate(mbobs):
+
+        new_obslist = ngmix.ObsList()
+        new_obslist.meta.update(obslist.meta)
+
         for epoch,obs in enumerate(obslist):
-            if obs.has_bmask():
-                bmask = obs.bmask
-                w=np.where( (bmask & flags2zero) != 0)
-                if w[0].size > 0:
-                    logging.debug('band %d epoch %d zeroing %d/%d in '
-                                  'weight' % (band,epoch,w[0].size,bmask.size))
-                    obs.weight[w] = 0.0
+            try:
+                if obs.has_bmask():
+                    bmask = obs.bmask
+                    w=np.where( (bmask & flags2zero) != 0)
+                    if w[0].size > 0:
+                        weight = obs.weight
+                        logging.debug('band %d epoch %d zeroing %d/%d in '
+                                      'weight' % (band,epoch,w[0].size,bmask.size))
+                        weight[w] = 0.0
+
+                        # trigger rebuild of pixels
+                        obs.weight = weight
+                new_obslist.append(obs)
+            except ngmix.GMixFatalError as err:
+                logging.info('band %d epoch %d all zero weight after '
+                             'bitmask' % (band,epoch))
+
+        if len(new_obslist) == 0:
+            return None, procflags.HIGH_MASKFRAC
+
+        new_mbobs.append(new_obslist)
+
+    return new_mbobs, 0
 
 def get_masked_frac_sums(obs):
     weight = obs.weight

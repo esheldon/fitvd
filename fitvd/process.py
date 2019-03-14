@@ -69,8 +69,8 @@ class Processor(object):
             epochs_data = None
 
         tm = time.time()-tm0
-        print('total time: %g' % tm)
-        print('time per: %g' % (tm/nfofs))
+        logger.info('total time: %g' % tm)
+        logger.info('time per: %g' % (tm/nfofs))
 
         self._write_output(output, epochs_data)
 
@@ -162,10 +162,52 @@ class Processor(object):
 
         return new_mbobs, flags
 
+    def _cut_low_npix(self, mbobs):
+        """
+        when using uberseg, the masking can be high in the weight
+        map.  we use this function instead which just checks the
+        raw number of pixels is above some threshold
+        """
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+
+        min_npix = self.config['min_npix']
+
+        flags = 0
+        for band,obslist in enumerate(mbobs):
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
+            for epoch,obs in enumerate(obslist):
+                npix, nmasked = util.get_masked_frac_sums(obs)
+                ngood = npix-nmasked
+
+                if ngood >= min_npix:
+                    new_obslist.append(obs)
+                else:
+                    logger.info(
+                        'skipping band %d '
+                        'epoch %d for npix %d < %d' % (band,epoch,ngood,min_npix)
+                    )
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                flags = procflags.TOO_FEW_PIXELS
+
+            new_mbobs.append(obslist)
+
+        return new_mbobs, flags
+
+
     def _get_mbobs(self, index):
+        if self.config['weight_type'] == 'circular-mask':
+            weight_type='weight'
+        else:
+            weight_type=self.config['weight_type']
+
         mbobs=self.mb_meds.get_mbobs(
             index,
-            weight_type='weight',
+            weight_type=weight_type,
         )
 
         if self.config['skip_first_epoch']:
@@ -174,9 +216,15 @@ class Processor(object):
                 return None, flags
 
         if self.config['image_flagnames_to_mask'] is not None:
-            util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
+            mbobs, flags = util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
+            if flags != 0:
+                return None, flags
 
-        mbobs, flags = self._cut_high_maskfrac(mbobs)
+        if self.config['weight_type'] == 'uberseg':
+            mbobs, flags = self._cut_low_npix(mbobs)
+        else:
+            mbobs, flags = self._cut_high_maskfrac(mbobs)
+
         if flags != 0:
             return None, flags
 
@@ -203,7 +251,6 @@ class Processor(object):
             m=self.mb_meds.mlist[band]
 
             if hasattr(self,'offsets'):
-                #print('doing offsets')
                 if len(mbobs)==1:
                     voffset = self.offsets['voffset'][index]
                     uoffset = self.offsets['uoffset'][index]
@@ -211,7 +258,6 @@ class Processor(object):
                     voffset = self.offsets['voffset'][index, band]
                     uoffset = self.offsets['uoffset'][index, band]
 
-                #print('offsets:',voffset,uoffset)
                 for obs in obslist:
                     jac = obs.jacobian
                     row,col = jac.get_rowcol(voffset, uoffset)
@@ -503,10 +549,11 @@ class Processor(object):
         we add quadratically with a fake psf fwhm of 1.5 arcsec
         """
 
-        assert self.config['weight_type'] in ('weight','circular-mask')
 
-        if self.config['weight_type'] == 'weight':
+        if self.config['weight_type'] in ('weight','uberseg'):
             return mbobs, 0
+
+        assert self.config['weight_type'] in ('circular-mask')
 
         # extra space around the object
         fwhm=1.5
