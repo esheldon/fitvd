@@ -117,7 +117,7 @@ def printflags(flags, setonly=False):
         If set, only print for those flags that are set for
         some objects
     """
-    s = '%16s %15s %8s %s' % ('flagname','val','numset','fracset')
+    s = '%16s %13s %8s  %s' % ('flagname','val','numset','fracset')
     print(s)
     print('-'*len(s))
     for val in _numorder:
@@ -127,4 +127,4 @@ def printflags(flags, setonly=False):
             continue
 
         frac = w.size/flags.size
-        print('%16s %13d %8d %g' % (name,val,w.size,frac))
+        print('%16s %13d %8d  %g' % (name,val,w.size,frac))
