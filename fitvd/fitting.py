@@ -840,9 +840,12 @@ def get_stamp_guesses(list_of_obs,
 
         if model=='bdf':
             #guess[beg+5] = rng.uniform(low=0.4,high=0.6)
-            low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
-            high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
-            guess[beg+5] = rng.uniform(low=low, high=high)
+            if hasattr(prior.fracdev_prior,'sigma'):
+                low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
+                high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
+                guess[beg+5] = rng.uniform(low=low, high=high)
+            else:
+                guess[beg+5] = prior.fracdev_prior.sample()
             flux_start=6
         else:
             flux_start=5
