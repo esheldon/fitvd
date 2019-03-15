@@ -350,7 +350,7 @@ class Processor(object):
         flux=iconf['flux']
 
         if model_name=='exp':
-            model = galsim.Exponential(
+            model0 = galsim.Exponential(
                 half_light_radius=hlr,
                 flux=flux,
             )
@@ -358,16 +358,16 @@ class Processor(object):
         elif model_name=='bdf':
 
             fracdev=iconf['fracdev'] 
-            model = galsim.Add(
-                galsim.Exponential(
-                    half_light_radius=hlr,
-                    flux=(1-fracdev),
-                ),
-                galsim.DeVaucouleurs(
-                    half_light_radius=hlr,
-                    flux=fracdev,
-                )
-            ).withFlux(flux)
+            eobj = galsim.Exponential(
+                half_light_radius=hlr,
+                flux=flux*(1-fracdev),
+            )
+            dobj = galsim.DeVaucouleurs(
+                half_light_radius=hlr*iconf['dev_hlr_ratio'],
+                flux=flux*fracdev,
+            )
+
+            model0 = galsim.Add(eobj, dobj)
         else:
             raise ValueError('bad model: "%s"' % model_name)
 
@@ -386,12 +386,19 @@ class Processor(object):
             obslist.meta['Tsky'] = Tfake
             for obs in obslist:
 
+                jac = obs.jacobian
+                ccen = (np.array(obs.image.shape)-1.0)/2.0
+                voffset,uoffset = jac.get_vu(ccen[0], ccen[1])
+                model = model0.shift(-uoffset, -voffset)
+
                 gsimage = galsim.Image(
                     obs.image.copy(),
-                    wcs=obs.jacobian.get_galsim_wcs(),
+                    wcs=jac.get_galsim_wcs(),
                 )
 
                 if psf_model is None:
+                    #import images
+                    #images.multiview(obs.psf.image/obs.psf.image.max(),nonlinear=0.4)
                     psf_gsimage = galsim.Image(
                         obs.psf.image/obs.psf.image.sum(),
                         wcs=obs.psf.jacobian.get_galsim_wcs(),
@@ -411,9 +418,10 @@ class Processor(object):
                         wcs=obs.psf.jacobian.get_galsim_wcs(),
                     )
 
-                    psf_to_conv = galsim.InterpolatedImage(
-                        psf_gsimage,
-                    )
+                    #psf_to_conv = galsim.InterpolatedImage(
+                    #    psf_gsimage,
+                    #)
+                    psf_to_conv = psf_model
                     obs.psf.image = psf_gsimage.array
 
                 tmodel = galsim.Convolve(

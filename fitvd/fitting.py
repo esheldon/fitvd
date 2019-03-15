@@ -752,6 +752,7 @@ def _fit_one_psf(obs, pconf):
 
     if res['flags']==0:
         gmix=psf_fitter.get_gmix()
+        #gmix.set_cen(0.0, 0.0)
         obs.set_gmix(gmix)
     else:
         raise BootPSFFailure("failed to fit psfs: %s" % str(res))
