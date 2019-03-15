@@ -837,9 +837,11 @@ def get_stamp_guesses(list_of_obs,
 
         guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-        # arbitrary guess for fracdev
         if model=='bdf':
-            guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            #guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
+            high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
+            guess[beg+5] = rng.uniform(low=low, high=high)
             flux_start=6
         else:
             flux_start=5
@@ -913,9 +915,12 @@ def get_stamp_guesses_gs(list_of_obs,
         # half light radius
         guess[beg+4] = hlr*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-        # arbitrary guess for fracdev
         if model=='bdf':
-            guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            #guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
+            high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
+            guess[beg+5] = rng.uniform(low=low, high=high)
+
             flux_start=6
         else:
             flux_start=5

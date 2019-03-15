@@ -24,16 +24,19 @@ def view_mbobs_list(mbobs_list, **kw):
             im=mbobs[0][0].image
             wt=mbobs[0][0].weight
 
-            #im -= im.min() + 1.0e-7
-            logim = np.log10(im.clip(min=1.0e-7))
-            logim /= logim.max()
+            im = im/im.max()
 
             row,col = grid(i)
 
-            tplt=images.view_mosaic([logim, wt], show=False)
+            implt = images.view(im, nonlinear=0.4, show=False)
+            wtplt = images.view(wt, show=False)
 
-            tplt.title='id: %d' % mbobs[0][0].meta['id']
-            plt[row,col] = tplt
+            tab = biggles.Table(1,2)
+            tab[0,0] = implt
+            tab[0,1] = wtplt
+
+            tab.title='id: %d' % mbobs[0][0].meta['id']
+            plt[row,col] = tab
 
         if show:
             plt.show(width=2000, height=2000*aratio)
@@ -132,18 +135,14 @@ def compare_images_mosaic(im1, im2, **keys):
     if im1.shape != im2.shape:
         raise ValueError("images must be the same shape")
     
-
-    #resid = im2-im1
     resid = im1-im2
-    #sresid = resid - resid.min()
-    #sresid *= 1.0/sresid.max()
-    sresid = np.log10( resid - resid.min() + 1.0e-7 )
-    sresid *= 1.0/sresid.max()
 
-    logim1 = np.log10(im1.clip(min=1.0e-7))
-    logim1 *= 1.0/logim1.max()
-    logim2 = np.log10(im2.clip(min=1.0e-7))
-    logim2 *= 1.0/logim2.max()
+    maxval = max( im1.max(), resid.max() )
+    mosaic = np.zeros( (im1.shape[0], 3*im1.shape[1]) )
+    ncols = im1.shape[1]
+    mosaic[:,0:ncols] = im1/maxval
+    mosaic[:,ncols:2*ncols] = im2/im2.max()
+    mosaic[:,2*ncols:3*ncols] = resid/maxval
 
     # will only be used if type is contour
     tab=biggles.Table(2,1)
@@ -154,13 +153,7 @@ def compare_images_mosaic(im1, im2, **keys):
     tkeys.pop('title',None)
     tkeys['show']=False
     tkeys['file']=None
-
-
-    mosaic = np.zeros( (logim1.shape[0], 3*logim1.shape[1]) )
-    ncols = logim1.shape[1]
-    mosaic[:,0:ncols] = logim1
-    mosaic[:,ncols:2*ncols] = logim2
-    mosaic[:,2*ncols:3*ncols] = sresid
+    tkeys['nonlinear'] = 0.4
 
     residplt=images.view(mosaic, **tkeys)
 
@@ -247,11 +240,25 @@ def compare_images_mosaic_old(im1, im2, **keys):
 
     if im1.shape != im2.shape:
         raise ValueError("images must be the same shape")
-
+    
 
     #resid = im2-im1
     resid = im1-im2
-    mval = min(im1.min(), im2.min(), resid.min())
+    #sresid = resid - resid.min()
+    #sresid *= 1.0/sresid.max()
+    sresid = np.log10( resid - resid.min() + 1.0e-7 )
+    sresid -= sresid.min()
+    sresid *= 1.0/sresid.max()
+
+    logim1 = np.log10(im1.clip(min=1.0e-7))
+    logim2 = np.log10(im2.clip(min=1.0e-7))
+
+    logim1 -= logim1.min()
+    logim2 -= logim2.min()
+
+    maxval = max(logim1.max(), logim2.max())
+    logim1 *= 1.0/maxval
+    logim2 *= 1.0/maxval
 
     # will only be used if type is contour
     tab=biggles.Table(2,1)
@@ -264,20 +271,15 @@ def compare_images_mosaic_old(im1, im2, **keys):
     tkeys['file']=None
 
 
-    tkeys['nonlinear']=None
-    # this has no effect
-    tkeys['min'] = resid.min()
-    tkeys['max'] = resid.max()
-
-    mosaic = np.zeros( (im1.shape[0], 3*im1.shape[1]) )
-    ncols = im1.shape[1]
-    mosaic[:,0:ncols] = im1 - mval
-    mosaic[:,ncols:2*ncols] = im2 - mval
-    mosaic[:,2*ncols:3*ncols] = resid - mval
+    mosaic = np.zeros( (logim1.shape[0], 3*logim1.shape[1]) )
+    ncols = logim1.shape[1]
+    mosaic[:,0:ncols] = logim1
+    mosaic[:,ncols:2*ncols] = logim2
+    mosaic[:,2*ncols:3*ncols] = sresid
 
     residplt=images.view(mosaic, **tkeys)
 
-    dof=im1.size
+    dof=resid.size
     chi2per = (resid**2).sum()/dof
     lab = biggles.PlotLabel(0.9,0.9,
                             r'$\chi^2/npix$: %.3e' % chi2per,
@@ -330,3 +332,5 @@ def compare_images_mosaic_old(im1, im2, **keys):
     images._show_maybe(tab, **keys)
 
     return tab
+
+

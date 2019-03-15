@@ -789,18 +789,32 @@ def _get_meds_file_info(run_conf, tile_conf):
     des_bands = run_conf.get('des_bands',[])
     video_bands = run_conf.get('video_bands',[])
 
-    for tilename in tile_conf['tilenames']:
+    for tilename_full in tile_conf['tilenames']:
+        if 'DES' in tilename_full:
+            tilename = tilename_full.split('_')[0]
+        else:
+            tilename = tilename_full
+
         meds_list = []
 
         for band in des_bands:
-            fname = tile_conf['des_pattern'] % dict(tilename=tilename, band=band)
+            fname = tile_conf['des_pattern'] % dict(
+                tilename=tilename,
+                tilename_full=tilename_full,
+                band=band,
+            )
             meds_list.append(fname)
 
         for band in video_bands:
-            fname = tile_conf['video_pattern'] % dict(tilename=tilename, band=band)
+            fname = tile_conf['video_pattern'] % dict(
+                tilename=tilename,
+                tilename_full=tilename_full,
+                band=band,
+            )
             meds_list.append(fname)
 
-        fi[tilename] = meds_list
+        #fi[tilename] = meds_list
+        fi[tilename_full] = meds_list
 
     return fi
 

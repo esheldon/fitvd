@@ -45,6 +45,7 @@ class Processor(object):
         """
         olist=[]
         elist=[]
+        flist=[]
 
         tm0 = time.time()
         nfofs = self.end-self.start+1
@@ -52,15 +53,16 @@ class Processor(object):
         for fofid in range(self.start,self.end+1):
             logger.info('processing: %d:%d' % (fofid,self.end))
 
-            tp = time.time()
-            output, epochs_data = self._process_fof(fofid)
-            tp = time.time()-tp
-            logger.info('FoF time: %g' % tp)
+            output, epochs_data, fof_data = self._process_fof(fofid)
+            flist.append(fof_data)
 
             if output is not None:
                 olist.append(output)
                 if epochs_data is not None:
                     elist.append(epochs_data)
+
+
+        fof_data = eu.numpy_util.combine_arrlist(flist)
 
         output = eu.numpy_util.combine_arrlist(olist)
         if len(elist) > 0:
@@ -72,12 +74,16 @@ class Processor(object):
         logger.info('total time: %g' % tm)
         logger.info('time per: %g' % (tm/nfofs))
 
-        self._write_output(output, epochs_data)
+        self._write_output(output, epochs_data, fof_data)
 
     def _process_fof(self, fofid):
         """
         process single FoF group
         """
+
+        tp = time.time()
+        fof_data = self._get_fof_struct()
+
         w,=np.where(self.fofs['fofid'] == fofid)
         logger.info('FoF size: %d' % w.size)
         assert w.size > 0,'no objects found for FoF id %d' % fofid
@@ -100,10 +106,25 @@ class Processor(object):
 
 
         self._add_extra_outputs(indices, output, fofid)
+
+        tp = time.time()-tp
+        fof_data['fof_id'] = fofid
+        fof_data['fof_size'] = w.size
+        fof_data['fof_time'] = tp
+        logger.info('FoF time: %g' % tp)
+
         if mbobs_list is not None and (self.args.save or self.args.show):
             self._doplots_compare_model(fofid, output, mbobs_list)
 
-        return output, epochs_data
+        return output, epochs_data, fof_data
+
+    def _get_fof_struct(self):
+        dt=[
+            ('fof_id','i8'),
+            ('fof_size','i4'),
+            ('fof_time','f4'),
+        ]
+        return np.zeros(1, dtype=dt)
 
     def _get_empty_output(self, indices):
         nobj = indices.size
@@ -648,7 +669,7 @@ class Processor(object):
             if 'q'==input('hit a key (q to quit): '):
                 stop
 
-    def _write_output(self, output, epochs_data):
+    def _write_output(self, output, epochs_data, fof_data):
         """
         write the output as well as information from the epochs
         """
@@ -657,6 +678,7 @@ class Processor(object):
             fits.write(output, extname='model_fits')
             if epochs_data is not None:
                 fits.write(epochs_data, extname='epochs_data')
+            fits.write(fof_data, extname='fof_data')
 
     def _set_rng(self):
         """
