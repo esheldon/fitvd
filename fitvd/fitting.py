@@ -100,14 +100,21 @@ class FitterBase(dict):
         get a prior object using the input specification
         """
         ptype=ppars['type']
+        bounds = ppars.get('bounds',None)
 
         if ptype=="flat":
+            assert bounds is None,'bounds not supported for flat'
             prior=ngmix.priors.FlatPrior(*ppars['pars'], rng=self.rng)
 
+        elif ptype=="bounds":
+            prior=ngmix.priors.LMBounds(*ppars['pars'], rng=self.rng)
+
         elif ptype == 'two-sided-erf':
+            assert bounds is None,'bounds not supported for erf'
             prior=ngmix.priors.TwoSidedErf(*ppars['pars'], rng=self.rng)
 
         elif ptype == 'sinh':
+            assert bounds is None,'bounds not supported for Sinh'
             prior=ngmix.priors.Sinh(ppars['mean'], ppars['scale'], rng=self.rng)
 
 
@@ -115,10 +122,12 @@ class FitterBase(dict):
             prior = ngmix.priors.Normal(
                 ppars['mean'],
                 ppars['sigma'],
+                bounds=bounds,
                 rng=self.rng,
             )
 
         elif ptype=='truncated-normal':
+            assert 'do not use truncated normal'
             prior = ngmix.priors.TruncatedGaussian(
                 mean=ppars['mean'],
                 sigma=ppars['sigma'],
@@ -128,6 +137,7 @@ class FitterBase(dict):
             )
 
         elif ptype=='log-normal':
+            assert bounds is None,'bounds not yet supported for LogNormal'
             if 'shift' in ppars:
                 shift=ppars['shift']
             else:
@@ -141,6 +151,7 @@ class FitterBase(dict):
 
 
         elif ptype=='normal2d':
+            assert bounds is None,'bounds not yet supported for Normal2D'
             prior=ngmix.priors.CenPrior(
                 0.0,
                 0.0,
@@ -150,6 +161,7 @@ class FitterBase(dict):
             )
 
         elif ptype=='ba':
+            assert bounds is None,'bounds not supported for BA'
             prior = ngmix.priors.GPriorBA(ppars['sigma'], rng=self.rng)
 
         else:
