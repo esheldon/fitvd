@@ -485,6 +485,8 @@ class CondorBatch(ShellBatch):
         write condor files for one tile
         """
 
+        assert not self.args.verify,'no verify for condor yet'
+
         self._clean_condor_files(tilename)
 
         self._write_master(tilename)
@@ -502,6 +504,10 @@ class CondorBatch(ShellBatch):
                 #logger.info('skipping large: %s' % start)
                 continue
 
+            if (self.args.missing and
+                    self._split_exists(tilename, isplit, fof_split)):
+                continue
+
             if njobs % self['jobs_per_sub']==0:
                 if fobj is not None:
                     fobj.close()
@@ -511,6 +517,18 @@ class CondorBatch(ShellBatch):
             self._write_split(fobj, tilename, isplit, fof_split)
 
             njobs += 1
+
+    def _split_exists(self, tilename, isplit, fof_split):
+        start, end = fof_split
+
+        output_file = files.get_split_output(
+            self['run'],
+            tilename,
+            start,
+            end,
+            ext='fits',
+        )
+        return os.path.exists(output_file)
 
     def _write_split(self, fobj, tilename, isplit, fof_split):
         """
