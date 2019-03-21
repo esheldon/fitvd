@@ -25,6 +25,10 @@ HIGH_MASKFRAC=2**5
 # occurs in the _set_weight method
 TOO_FEW_PIXELS=2**6
 
+# all epochs had the center masked
+ALL_CENTERS_MASKED=2**7
+
+
 FLAG_MAP={
     'ok':0,
     0:'ok',
