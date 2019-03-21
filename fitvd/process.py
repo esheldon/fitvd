@@ -293,7 +293,9 @@ class Processor(object):
                 return None, flags
 
         if 'trim_images' in self.config:
-            mbobs = self._trim_images(mbobs, index)
+            mbobs, flags = self._trim_images(mbobs, index)
+            if flags != 0:
+                return None, flags
 
         if self.config['image_flagnames_to_mask'] is not None:
             mbobs, flags = util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
@@ -410,11 +412,8 @@ class Processor(object):
         new_mbobs = ngmix.MultiBandObsList()
         new_mbobs.meta.update( mbobs.meta )
 
-        id=mbobs[0][0].meta['id']
 
         for band,obslist in enumerate(mbobs):
-            new_obslist = ngmix.ObsList()
-            new_obslist.meta.update(obslist.meta)
 
             imlist=[]
             wtlist = []
@@ -424,18 +423,23 @@ class Processor(object):
 
             nreject=meds.reject_outliers(imlist,wtlist)
             if nreject > 0:
+                id=obslist[0].meta['id']
                 logger.info(
                     '    id %d band %d rejected %d outlier pixels' % (id,band,nreject)
                 )
 
-            for obs in obslist:
-                # this will force an update of the pixels list
-                try:
-                    obs.update_pixels()
-                    new_obslist.append( obs )
-                except ngmix.GMixFatalError as err:
-                    # all pixels are masked
-                    pass
+                new_obslist = ngmix.ObsList()
+                new_obslist.meta.update(obslist.meta)
+                for obs in obslist:
+                    # this will force an update of the pixels list
+                    try:
+                        obs.update_pixels()
+                        new_obslist.append( obs )
+                    except ngmix.GMixFatalError as err:
+                        # all pixels are masked
+                        pass
+            else:
+                new_obslist = obslist
 
             if len(new_obslist) == 0:
                 logger.info('no cutouts left for band %d' % band)
@@ -696,21 +700,30 @@ class Processor(object):
                     meta['orig_start_row'] += row_start
                     meta['orig_start_col'] += col_start
 
-                    new_obs = ngmix.Observation(
-                        subim,
-                        weight=subwt,
-                        jacobian=jac,
-                        meta=obs.meta,
-                        psf=obs.psf,
-                    )
+                    try:
+                        new_obs = ngmix.Observation(
+                            subim,
+                            weight=subwt,
+                            jacobian=jac,
+                            meta=obs.meta,
+                            psf=obs.psf,
+                        )
+                    except ngmix.GMixFatalError as err:
+                        new_obs = None
                 else:
                     new_obs = obs
 
-                new_obslist.append(new_obs)
+                if new_obs is not None:
+                    new_obslist.append(new_obs)
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                flags = procflags.HIGH_MASKFRAC
+                return None, flags
 
             new_mbobs.append(new_obslist)
 
-        return new_mbobs
+        return new_mbobs, 0
 
 
 

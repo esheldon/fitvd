@@ -244,6 +244,7 @@ class MOFFitter(FitterBase):
             epochs_data=None
             print(str(err))
             res={
+                'ntry':-1,
                 'main_flags':procflags.NO_DATA,
                 'main_flagstr':procflags.get_flagname(procflags.NO_DATA),
             }
@@ -253,6 +254,7 @@ class MOFFitter(FitterBase):
             epochs_data=None
             print(str(err))
             res={
+                'ntry':-1,
                 'main_flags':procflags.PSF_FAILURE,
                 'main_flagstr':procflags.get_flagname(procflags.PSF_FAILURE),
             }
