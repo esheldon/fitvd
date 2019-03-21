@@ -281,6 +281,9 @@ class Processor(object):
             weight_type=weight_type,
         )
 
+        if len(mbobs) < self.mb_meds.nband:
+            return None, procflags.NO_DATA
+
         if self.config['skip_first_epoch']:
             mbobs, flags =self._remove_first_epoch(mbobs)
             if flags != 0:
