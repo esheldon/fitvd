@@ -5,6 +5,7 @@ from pprint import pprint
 
 import esutil as eu
 import ngmix
+from  ngmix import format_pars
 from ngmix.gexceptions import GMixRangeError
 from ngmix.observation import Observation
 
@@ -200,17 +201,20 @@ class MOFFitter(FitterBase):
         if not isinstance(mbobs_list,list):
             mbobs_list=[mbobs_list]
 
+        mofc = self['mof']
+        lm_pars = mofc.get('lm_pars',None)
+
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
 
-            mofc = self['mof']
             fitter = self._mof_fitter_class(
                 mbobs_list,
                 mofc['model'],
                 prior=self.mof_prior,
+                lm_pars=lm_pars,
             )
             for i in range(ntry):
                 guess=self._guess_func(
@@ -226,6 +230,8 @@ class MOFFitter(FitterBase):
                 res=fitter.get_result()
                 if res['flags']==0:
                     break
+
+            res['ntry'] = i+1
 
             if res['flags'] != 0:
                 res['main_flags'] = procflags.OBJ_FAILURE
@@ -366,6 +372,7 @@ class MOFFitter(FitterBase):
             ('psf_flux_err','f8',nband),
             ('psf_flux_s2n','f8',nband),
             (n('flags'),'i4'),
+            (n('ntry'),'i2'),
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
             (n('pars'),'f8',npars),
@@ -424,6 +431,9 @@ class MOFFitter(FitterBase):
 
         if 'flags' in main_res:
             output[n('flags')] = main_res['flags']
+
+        output[n('ntry')] = main_res['ntry']
+        logger.info('ntry: %d' % main_res['ntry'])
 
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
@@ -532,6 +542,7 @@ class MOFFitterGS(MOFFitter):
             ('psf_flux_err','f8',nband),
             ('psf_flux_s2n','f8',nband),
             (n('flags'),'i4'),
+            (n('ntry'),'i2'),
             (n('nfev'),'i4'),
             (n('s2n'),'f8'),
             (n('pars'),'f8',npars),
@@ -607,12 +618,15 @@ class MOFFluxFitterGS(MOFFitterGS):
                 if res['flags']==0:
                     break
 
+            res['ntry'] = i+1
+
             if res['flags'] != 0:
                 res['main_flags'] = procflags.OBJ_FAILURE
                 res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
             else:
                 res['main_flags'] = 0
                 res['main_flagstr'] = procflags.get_flagname(0)
+
 
         except NoDataError as err:
             epochs_data=None
@@ -632,6 +646,7 @@ class MOFFluxFitterGS(MOFFitterGS):
             }
 
         nobj = len(mbobs_list)
+
 
         if res['main_flags'] != 0:
             reslist=None
@@ -841,8 +856,11 @@ def get_stamp_guesses(list_of_obs,
         beg=i*npars_per
 
         # always close guess for center
-        guess[beg+0] = rng.uniform(low=-pos_range, high=pos_range)
-        guess[beg+1] = rng.uniform(low=-pos_range, high=pos_range)
+        #guess[beg+0] = rng.uniform(low=-pos_range, high=pos_range)
+        #guess[beg+1] = rng.uniform(low=-pos_range, high=pos_range)
+        rowguess, colguess = prior.cen_prior.sample()
+        guess[beg+0] = rowguess
+        guess[beg+1] = colguess
 
         # always arbitrary guess for shape
         guess[beg+2] = rng.uniform(low=-0.05, high=0.05)
@@ -851,13 +869,20 @@ def get_stamp_guesses(list_of_obs,
         guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
         if model=='bdf':
-            #guess[beg+5] = rng.uniform(low=0.4,high=0.6)
+            #fracdev_guess = prior.fracdev_prior.sample()
             if hasattr(prior.fracdev_prior,'sigma'):
+                # guessing close to mean seems to be important for the pathological
+                # cases of an undetected object close to another
                 low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
                 high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
-                guess[beg+5] = rng.uniform(low=low, high=high)
+                while True:
+                    fracdev_guess = rng.uniform(low=low, high=high)
+                    if 0 < fracdev_guess < 1:
+                        break
             else:
-                guess[beg+5] = prior.fracdev_prior.sample()
+                fracdev_guess = prior.fracdev_prior.sample()
+
+            guess[beg+5] = fracdev_guess
             flux_start=6
         else:
             flux_start=5
@@ -870,10 +895,14 @@ def get_stamp_guesses(list_of_obs,
             # note we take out scale**2 in DES images when
             # loading from MEDS so this isn't needed
             flux=band_meta['psf_flux']
-            flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
+            low = flux
+            high = flux*2.0
+            flux_guess=rng.uniform(low=low, high=high)
+            #flux_guess=flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
             guess[beg+flux_start+band] = flux_guess
 
+        logger.debug('guess[%d]: %s' % (i,format_pars(guess[beg:beg+flux_start+band+1])))
     return guess
 
 def get_stamp_guesses_gs(list_of_obs,
