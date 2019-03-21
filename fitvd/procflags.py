@@ -52,6 +52,9 @@ FLAG_MAP={
 
     'too_few_pixels': TOO_FEW_PIXELS,
     TOO_FEW_PIXELS: 'too_few_pixels',
+
+    'all_centers_masked': ALL_CENTERS_MASKED,
+    ALL_CENTERS_MASKED: 'all_centers_masked',
 }
 
 _numorder=[key for key in FLAG_MAP if isinstance(key,int)]
