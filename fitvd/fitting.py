@@ -902,6 +902,20 @@ def get_stamp_guesses(list_of_obs,
 
             guess[beg+flux_start+band] = flux_guess
 
+        # fix fluxes
+        fluxes = guess[beg+flux_start:beg+flux_start+nband]
+        logic = np.isfinite(fluxes) & (fluxes > 0.0)
+        wgood, = np.where(logic == True)
+        if wgood.size != nband:
+            logging.info('fixing bad flux guesses: %s' % format_pars(fluxes))
+            if wgood.size == 0:
+                fluxes[:] = rng.uniform(low=100,high=200)
+            else:
+                wbad, = np.where(logic == False)
+                fac = 1.0 + rng.uniform(low=-0.1, high=0.1,size=wbad.size)
+                fluxes[wbad] = fluxes[wgood].mean()*fac
+            logging.info('new guesses: %s' % format_pars(fluxes))
+
         logger.debug('guess[%d]: %s' % (i,format_pars(guess[beg:beg+flux_start+band+1])))
     return guess
 
