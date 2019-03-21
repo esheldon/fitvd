@@ -108,7 +108,7 @@ class Processor(object):
                 ntry=self.config['mof']['ntry'],
             )
 
-        logger.info('fit result: %s' % (output['flagstr'][0]))
+        logger.info('fit result: %s' % ( str(output['flagstr'][0],'utf-8') ))
 
         self._add_extra_outputs(indices, output, fofid)
 
@@ -286,11 +286,14 @@ class Processor(object):
             if flags != 0:
                 return None, flags
 
+        # need to do this *before* trimming
+        if self.config['reject_outliers']:
+            mbobs, flags = self._reject_outliers(mbobs)
+            if flags != 0:
+                return None, flags
+
         if 'trim_images' in self.config:
             mbobs = self._trim_images(mbobs, index)
-
-        if self.config['reject_outliers']:
-            self._reject_outliers(mbobs)
 
         if self.config['image_flagnames_to_mask'] is not None:
             mbobs, flags = util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
@@ -404,9 +407,14 @@ class Processor(object):
         """
         logging.debug('rejecting outliers')
 
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+
         id=mbobs[0][0].meta['id']
 
         for band,obslist in enumerate(mbobs):
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
 
             imlist=[]
             wtlist = []
@@ -420,9 +428,23 @@ class Processor(object):
                     '    id %d band %d rejected %d outlier pixels' % (id,band,nreject)
                 )
 
-            for i,wt in enumerate(wtlist):
+            for obs in obslist:
                 # this will force an update of the pixels list
-                obslist[i].update_pixels()
+                try:
+                    obs.update_pixels()
+                    new_obslist.append( obs )
+                except ngmix.GMixFatalError as err:
+                    # all pixels are masked
+                    pass
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                flags = procflags.HIGH_MASKFRAC
+                return None, flags
+
+            new_mbobs.append(new_obslist)
+
+        return new_mbobs, 0
 
     def _inject_fake_objects(self, mbobs):
         """
