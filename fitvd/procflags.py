@@ -25,6 +25,10 @@ HIGH_MASKFRAC=2**5
 # occurs in the _set_weight method
 TOO_FEW_PIXELS=2**6
 
+# all epochs had the center masked
+ALL_CENTERS_MASKED=2**7
+
+
 FLAG_MAP={
     'ok':0,
     0:'ok',
@@ -48,6 +52,9 @@ FLAG_MAP={
 
     'too_few_pixels': TOO_FEW_PIXELS,
     TOO_FEW_PIXELS: 'too_few_pixels',
+
+    'all_centers_masked': ALL_CENTERS_MASKED,
+    ALL_CENTERS_MASKED: 'all_centers_masked',
 }
 
 _numorder=[key for key in FLAG_MAP if isinstance(key,int)]
@@ -117,14 +124,26 @@ def printflags(flags, setonly=False):
         If set, only print for those flags that are set for
         some objects
     """
-    s = '%16s %13s %8s  %s' % ('flagname','val','numset','fracset')
+    ntot = 0
+    flagtot = 0
+    s = '%19s %7s %8s  %s' % ('flagname','val','num','fraction')
     print(s)
     print('-'*len(s))
     for val in _numorder:
+        if val==0:
+            continue
+
+        flagtot |= val
+
         name = get_flagname(val)
         w,=np.where(flags & val != 0)
         if setonly and w.size == 0:
             continue
 
+        ntot += w.size
         frac = w.size/flags.size
-        print('%16s %13d %8d  %g' % (name,val,w.size,frac))
+        print('%19s %7d %8d  %g' % (name,val,w.size,frac))
+
+    print('-'*len(s))
+    fractot = ntot/flags.size
+    print('%19s %7d %8d  %g' % ('total',flagtot,ntot,fractot))

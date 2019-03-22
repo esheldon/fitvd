@@ -3,47 +3,55 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def view_mbobs_list(mbobs_list, **kw):
+def view_mbobs_list(fofid, mbobs_list, **kw):
     import biggles
     import images
     import plotting
 
-    weight=kw.get('weight',False)
     nband=len(mbobs_list[0])
     show=kw.get('show',False)
+    save=kw.get('save',False)
 
-    if weight:
-        grid=plotting.Grid(len(mbobs_list))
-        plt=biggles.Table(
-            grid.nrow,
-            grid.ncol,
-        )
-        aratio = grid.nrow/(grid.ncol*2)
-        plt.aspect_ratio = aratio
-        for i,mbobs in enumerate(mbobs_list):
-            im=mbobs[0][0].image
-            wt=mbobs[0][0].weight
+    for i,mbobs in enumerate(mbobs_list):
+        id = mbobs[0][0].meta['id']
 
-            im = im/im.max()
+        for band, obslist in enumerate(mbobs):
 
-            row,col = grid(i)
+            grid=plotting.Grid(len(obslist))
+            plt=biggles.Table(
+                grid.nrow,
+                grid.ncol,
+            )
+            aratio = grid.nrow/(grid.ncol*2)
+            plt.aspect_ratio = aratio
+            plt.title='FoF: %d id: %d band: %d' % (fofid, id, band)
 
-            implt = images.view(im, nonlinear=0.4, show=False)
-            wtplt = images.view(wt, show=False)
+            for iobs, obs in enumerate(obslist):
 
-            tab = biggles.Table(1,2)
-            tab[0,0] = implt
-            tab[0,1] = wtplt
+                im=obs.image
+                wt=obs.weight
 
-            tab.title='id: %d' % mbobs[0][0].meta['id']
-            plt[row,col] = tab
+                im = im/im.max()
 
-        if show:
-            plt.show(width=2000, height=2000*aratio)
-    else:
-        imlist=[mbobs[0][0].image for mbobs in mbobs_list]
+                row,col = grid(iobs)
 
-        plt=images.view_mosaic(imlist, **kw)
+                implt = images.view(im, nonlinear=0.4, show=False)
+                wtplt = images.view(wt, show=False)
+
+                tab = biggles.Table(1,2)
+                tab[0,0] = implt
+                tab[0,1] = wtplt
+
+                tab.title='id: %d band: %d obs: %d' % (id, band, iobs)
+                plt[row,col] = tab
+
+            if save:
+                pltname='images-fof%06d-id%06d-band%d.png' % (fofid, id, band)
+                logger.info('writing: %s' % pltname)
+                plt.write_img(3000, 3000*aratio, pltname)
+
+            if show:
+                plt.show(width=2000, height=2000*aratio)
 
     return plt
 

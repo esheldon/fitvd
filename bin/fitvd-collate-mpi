@@ -28,7 +28,12 @@ def main():
             else:
                 epochs_data=None
 
-        return model_fits, epochs_data, fname
+            if 'fof_data' in fits:
+                fof_data = fits['fof_data'][:]
+            else:
+                fof_data=None
+
+        return model_fits, epochs_data, fof_data, fname
 
     if navy.rank == navy.ADMIRAL:
 
@@ -77,14 +82,18 @@ def main():
 
                 mlist=[]
                 elist=[]
-                for m, e, fname in reports:
+                foflist=[]
+                for m, e, f, fname in reports:
                     if m is not None:
                         mlist.append(m)
                     if e is not None:
                         elist.append(e)
+                    if f is not None:
+                        foflist.append(f)
 
                 model_fits = eu.numpy_util.combine_arrlist(mlist)
                 epochs_data = eu.numpy_util.combine_arrlist(elist)
+                fof_data = eu.numpy_util.combine_arrlist(foflist)
 
                 s = model_fits['id'].argsort()
                 model_fits = model_fits[s]
@@ -92,8 +101,12 @@ def main():
                 s = epochs_data['id'].argsort()
                 epochs_data = epochs_data[s]
 
+                s = fof_data['fof_id'].argsort()
+                fof_data = fof_data[s]
+
                 fits.write(model_fits, extname='model_fits')
                 fits.write(epochs_data, extname='epochs_data')
+                fits.write(fof_data, extname='fof_data')
 
     else:
         ship = navy.Ship(get_data)

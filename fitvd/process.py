@@ -14,6 +14,7 @@ import ngmix.medsreaders
 import fitsio
 import yaml
 import esutil as eu
+import meds
 
 from . import fitting
 from . import files
@@ -102,8 +103,12 @@ class Processor(object):
                 self._doplots(fofid, mbobs_list)
 
             logger.debug('doing fits')
-            output, epochs_data = self.fitter.go(mbobs_list)
+            output, epochs_data = self.fitter.go(
+                mbobs_list,
+                ntry=self.config['mof']['ntry'],
+            )
 
+        logger.info('fit result: %s' % ( str(output['flagstr'][0],'utf-8') ))
 
         self._add_extra_outputs(indices, output, fofid)
 
@@ -179,7 +184,52 @@ class Processor(object):
                 logger.info('no cutouts left for band %d' % band)
                 flags = procflags.HIGH_MASKFRAC
 
-            new_mbobs.append(obslist)
+            new_mbobs.append(new_obslist)
+
+        return new_mbobs, flags
+
+    def _cut_masked_center(self, mbobs):
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+
+        flags = 0
+        cconf = self.config['cut_masked_center']
+        rad = cconf['radius_pixels']
+
+        id = mbobs[0][0].meta['id']
+
+        for band,obslist in enumerate(mbobs):
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
+            for epoch,obs in enumerate(obslist):
+
+                shape = obs.image.shape
+                row, col = (np.array(shape)-1.0)/2.0
+
+                row_start = _clip_pixel(row-rad, shape[0])
+                row_end   = _clip_pixel(row+rad, shape[0])
+                col_start = _clip_pixel(col-rad, shape[1])
+                col_end   = _clip_pixel(col+rad, shape[1])
+
+                wt_sub = obs.weight[
+                    row_start:row_end,
+                    col_start:col_end,
+                ]
+                wcen=np.where(wt_sub <= 0.0)
+                if wcen[0].size > 0:
+                    logger.info(
+                        '    id %d skipping band %d '
+                        'cutout %d due masked center' % (id, band,epoch)
+                    )
+                else:
+                    new_obslist.append(obs)
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                return None, procflags.ALL_CENTERS_MASKED
+
+            new_mbobs.append(new_obslist)
 
         return new_mbobs, flags
 
@@ -231,8 +281,22 @@ class Processor(object):
             weight_type=weight_type,
         )
 
+        if len(mbobs) < self.mb_meds.nband:
+            return None, procflags.NO_DATA
+
         if self.config['skip_first_epoch']:
             mbobs, flags =self._remove_first_epoch(mbobs)
+            if flags != 0:
+                return None, flags
+
+        # need to do this *before* trimming
+        if self.config['reject_outliers']:
+            mbobs, flags = self._reject_outliers(mbobs)
+            if flags != 0:
+                return None, flags
+
+        if 'trim_images' in self.config:
+            mbobs, flags = self._trim_images(mbobs, index)
             if flags != 0:
                 return None, flags
 
@@ -252,12 +316,16 @@ class Processor(object):
         if 'inject' in self.config and self.config['inject']['do_inject']:
             self._inject_fake_objects(mbobs)
 
-        if 'trim_images' in self.config and self.config['trim_images']['trim']:
-            mbobs = self._trim_images(mbobs, index)
 
         mbobs, flags = self._set_weight(mbobs, index)
         if flags != 0:
             return None, flags
+
+        if 'cut_masked_center' in self.config:
+            mbobs, flags = self._cut_masked_center(mbobs)
+            if flags != 0:
+                return None, flags
+
 
         mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
 
@@ -337,6 +405,54 @@ class Processor(object):
 
         return new_mbobs, 0
 
+    def _reject_outliers(self, mbobs):
+        """
+        remove first "epoch" from all Obslist.  This is usually
+        to skip the coadd
+        """
+        logging.debug('rejecting outliers')
+
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update( mbobs.meta )
+
+
+        for band,obslist in enumerate(mbobs):
+
+            imlist=[]
+            wtlist = []
+            for obs in obslist:
+                imlist.append(obs.image)
+                wtlist.append(obs.weight)
+
+            nreject=meds.reject_outliers(imlist,wtlist)
+            if nreject > 0:
+                id=obslist[0].meta['id']
+                logger.info(
+                    '    id %d band %d rejected %d outlier pixels' % (id,band,nreject)
+                )
+
+                new_obslist = ngmix.ObsList()
+                new_obslist.meta.update(obslist.meta)
+                for obs in obslist:
+                    # this will force an update of the pixels list
+                    try:
+                        obs.update_pixels()
+                        new_obslist.append( obs )
+                    except ngmix.GMixFatalError as err:
+                        # all pixels are masked
+                        pass
+            else:
+                new_obslist = obslist
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                flags = procflags.HIGH_MASKFRAC
+                return None, flags
+
+            new_mbobs.append(new_obslist)
+
+        return new_mbobs, 0
+
     def _sample_fake(self, conf):
         if isinstance(conf,dict):
             if conf['type']=='uniform':
@@ -358,6 +474,8 @@ class Processor(object):
             val=conf
 
         return val
+
+
 
     def _inject_fake_objects(self, mbobs):
         """
@@ -517,10 +635,17 @@ class Processor(object):
 
         new_mbobs=ngmix.MultiBandObsList()
         new_mbobs.meta.update( mbobs.meta )
+
+        radcol = self.config['radius_column']
+
         for band,obslist in enumerate(mbobs):
 
             m=self.mb_meds.mlist[band]
-            rad = m['iso_radius_arcsec'][index]*3.0
+            #rad = m['iso_radius_arcsec'][index]*3.0
+            rad = m[radcol][index]*3.0
+            if 'arcsec' not in radcol:
+                scale = obslist[0].jacobian.get_scale()
+                rad = rad*scale
 
             new_obslist=ngmix.ObsList()
             new_obslist.meta.update( obslist.meta )
@@ -577,21 +702,30 @@ class Processor(object):
                     meta['orig_start_row'] += row_start
                     meta['orig_start_col'] += col_start
 
-                    new_obs = ngmix.Observation(
-                        subim,
-                        weight=subwt,
-                        jacobian=jac,
-                        meta=obs.meta,
-                        psf=obs.psf,
-                    )
+                    try:
+                        new_obs = ngmix.Observation(
+                            subim,
+                            weight=subwt,
+                            jacobian=jac,
+                            meta=obs.meta,
+                            psf=obs.psf,
+                        )
+                    except ngmix.GMixFatalError as err:
+                        new_obs = None
                 else:
                     new_obs = obs
 
-                new_obslist.append(new_obs)
+                if new_obs is not None:
+                    new_obslist.append(new_obs)
+
+            if len(new_obslist) == 0:
+                logger.info('no cutouts left for band %d' % band)
+                flags = procflags.HIGH_MASKFRAC
+                return None, flags
 
             new_mbobs.append(new_obslist)
 
-        return new_mbobs
+        return new_mbobs, 0
 
 
 
@@ -679,12 +813,7 @@ class Processor(object):
         return new_mbobs, 0
 
     def _doplots(self, fofid, mbobs_list):
-        plt=vis.view_mbobs_list(mbobs_list, show=self.args.show, weight=True)
-        if self.args.save:
-            pltname='images-%06d.png' % fofid
-            plt.title='FoF id: %d' % fofid
-            logger.info('writing: %s' % pltname)
-            plt.write(pltname,dpi=300)
+        plt=vis.view_mbobs_list(fofid, mbobs_list, show=self.args.show, save=self.args.save)
 
     def _doplots_compare_model(self, fofid, output, mbobs_list):
         args=self.args
@@ -736,6 +865,8 @@ class Processor(object):
             self.config['image_flagvals_to_mask'] = desbits.get_flagvals(
                 self.config['image_flagnames_to_mask']
             )
+            logger.info('will mask: %s' % repr(self.config['image_flagnames_to_mask']))
+            logger.info('combined val: %d' % (self.config['image_flagvals_to_mask']))
 
     def _set_fitter(self):
         """
@@ -862,3 +993,13 @@ class Processor(object):
                 'some offsets ids did not match'
 
             self.offsets = self.offsets[mo]
+
+def _clip_pixel(pixel, npix):
+    pixel=int(pixel)
+    if pixel < 0:
+        pixel=0
+    if pixel > (npix-1):
+        pixel = (npix-1)
+    return pixel
+
+
