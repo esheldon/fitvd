@@ -217,6 +217,7 @@ class MOFFitter(FitterBase):
                 lm_pars=lm_pars,
             )
             for i in range(ntry):
+                logger.debug('try: %d' % (i+1))
                 guess=self._guess_func(
                     mbobs_list,
                     mofc['detband'],
