@@ -337,6 +337,28 @@ class Processor(object):
 
         return new_mbobs, 0
 
+    def _sample_fake(self, conf):
+        if isinstance(conf,dict):
+            if conf['type']=='uniform':
+                rng=conf['range']
+                val = self.rng.uniform(
+                    low=rng[0],
+                    high=rng[1],
+                )
+            elif conf['type']=='log-uniform':
+                rng=conf['range']
+                logrng = [np.log10(rng[0]), np.log10(rng[1])]
+                logvals = self.rng.uniform(
+                    low=logrng[0],
+                    high=logrng[1],
+                )
+                val = 10.0**logvals
+
+        else:
+            val=conf
+
+        return val
+
     def _inject_fake_objects(self, mbobs):
         """
         inject a simple model for quick tests
@@ -347,26 +369,8 @@ class Processor(object):
 
         model_name=iconf['model']
 
-        if isinstance(iconf['flux'],dict):
-            rng=iconf['flux']['range']
-            flux = self.rng.uniform(
-                low=rng[0],
-                high=rng[1],
-            )
-            logger.debug('flux: %g' % flux)
-        else:
-            flux=iconf['flux'] 
-
-        if isinstance(iconf['hlr'],dict):
-            rng=iconf['hlr']['range']
-            hlr = self.rng.uniform(
-                low=rng[0],
-                high=rng[1],
-            )
-            logger.debug('hlr: %g' % hlr)
-        else:
-            hlr=iconf['hlr'] 
-
+        flux = self._sample_fake(iconf['flux'])
+        hlr = self._sample_fake(iconf['hlr'])
 
         if model_name=='exp':
             model0 = galsim.Exponential(
@@ -376,15 +380,7 @@ class Processor(object):
 
         elif model_name=='bdf':
 
-            if isinstance(iconf['fracdev'],dict):
-                rng=iconf['fracdev']['range']
-                fracdev = self.rng.uniform(
-                    low=rng[0],
-                    high=rng[1],
-                )
-                logger.debug('fracdev: %g' % fracdev)
-            else:
-                fracdev=iconf['fracdev'] 
+            fracdev = self._sample_fake(iconf['fracdev'])
 
             eobj = galsim.Exponential(
                 half_light_radius=hlr,
@@ -427,15 +423,16 @@ class Processor(object):
                 if psf_model is None:
                     #import images
                     #images.multiview(obs.psf.image/obs.psf.image.max(),nonlinear=0.4)
+                    normpsf = obs.psf.image/obs.psf.image.sum()
                     psf_gsimage = galsim.Image(
-                        obs.psf.image/obs.psf.image.sum(),
+                        normpsf,
                         wcs=obs.psf.jacobian.get_galsim_wcs(),
                     )
                     psf_to_conv = galsim.InterpolatedImage(
                         psf_gsimage,
-                        #x_interpolant='lanczos15',
+                        x_interpolant='lanczos15',
                     )
-                    obs.psf.image = psf_gsimage.array
+                    obs.psf.image = normpsf
 
                 else:
 
