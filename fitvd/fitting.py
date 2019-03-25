@@ -42,7 +42,7 @@ class FitterBase(dict):
         Set all the priors
         """
         import ngmix
-        from ngmix.joint_prior import PriorSimpleSep, PriorBDFSep
+        from ngmix.joint_prior import PriorSimpleSep, PriorBDFSep, PriorBDSep
 
         if 'priors' not in conf:
             return None
@@ -70,8 +70,27 @@ class FitterBase(dict):
         assert cp['type'] == 'normal2d'
         cen_prior = self._get_prior_generic(cp)
 
-        if conf['model']=='bdf':
-            assert 'fracdev' in ppars,"set fracdev prior for bdf model"
+        if 'bd' in conf['model']:
+            assert 'fracdev' in ppars,"set fracdev prior for bdf and bd models"
+
+        if conf['model']=='bd':
+            assert 'logTratio' in ppars,"set logTratio prior for bd model"
+            fp = ppars['fracdev']
+            logTratiop = ppars['logTratio']
+
+            fracdev_prior = self._get_prior_generic(fp)
+            logTratio_prior = self._get_prior_generic(logTratiop)
+
+            prior = PriorBDSep(
+                cen_prior,
+                g_prior,
+                size_prior,
+                logTratio_prior,
+                fracdev_prior,
+                [flux_prior]*self.nband,
+            )
+
+        elif conf['model']=='bdf':
             fp = ppars['fracdev']
             #assert 'normal' in fp['type'],'only normal type priors supported for fracdev'
 
@@ -392,11 +411,17 @@ class MOFFitter(FitterBase):
             (n('flux_err'),'f8',nband),
         ]
 
-        if self['mof']['model']=='bdf':
+        if 'bd' in self['mof']['model']:
             dt += [
                 (n('fracdev'),'f8'),
                 (n('fracdev_err'),'f8'),
             ]
+        if self['mof']['model']=='bd':
+            dt += [
+                (n('logTratio'),'f8'),
+                (n('logTratio_err'),'f8'),
+            ]
+
         return dt
 
     def _get_struct(self, nobj):
@@ -562,11 +587,19 @@ class MOFFitterGS(MOFFitter):
             (n('flux_err'),'f8',nband),
         ]
 
-        if self['mof']['model']=='bdf':
+        if 'bd' in self['mof']['model']:
             dt += [
                 (n('fracdev'),'f8'),
                 (n('fracdev_err'),'f8'),
             ]
+
+        if self['mof']['model']=='bd':
+            dt += [
+                (n('logTratio'),'f8'),
+                (n('logTratio_err'),'f8'),
+            ]
+
+
         return dt
 
 class MOFFluxFitterGS(MOFFitterGS):
@@ -837,7 +870,9 @@ def get_stamp_guesses(list_of_obs,
 
     nband=len(list_of_obs[0])
 
-    if model=='bdf':
+    if model=='bd':
+        npars_per=7+nband
+    elif model=='bdf':
         npars_per=6+nband
     else:
         npars_per=5+nband
@@ -859,8 +894,6 @@ def get_stamp_guesses(list_of_obs,
         beg=i*npars_per
 
         # always close guess for center
-        #guess[beg+0] = rng.uniform(low=-pos_range, high=pos_range)
-        #guess[beg+1] = rng.uniform(low=-pos_range, high=pos_range)
         rowguess, colguess = prior.cen_prior.sample()
         guess[beg+0] = rowguess
         guess[beg+1] = colguess
@@ -871,8 +904,7 @@ def get_stamp_guesses(list_of_obs,
 
         guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-        if model=='bdf':
-            #fracdev_guess = prior.fracdev_prior.sample()
+        if 'bd' in model:
             if hasattr(prior.fracdev_prior,'sigma'):
                 # guessing close to mean seems to be important for the pathological
                 # cases of an undetected object close to another
@@ -885,6 +917,17 @@ def get_stamp_guesses(list_of_obs,
             else:
                 fracdev_guess = prior.fracdev_prior.sample()
 
+
+        if model=='bd':
+
+            low  = prior.logTratio_prior.mean - 0.1*prior.logTratio_prior.sigma
+            high = prior.logTratio_prior.mean + 0.1*prior.logTratio_prior.sigma
+            logTratio_guess = rng.uniform(low=low, high=high)
+
+            guess[beg+5] = logTratio_guess
+            guess[beg+6] = fracdev_guess
+            flux_start=7
+        elif model=='bdf':
             guess[beg+5] = fracdev_guess
             flux_start=6
         else:
@@ -933,6 +976,7 @@ def get_stamp_guesses_gs(list_of_obs,
     T guess is gotten from detband
     """
 
+    assert model!='bd','fix guesses for gs and bd'
     nband=len(list_of_obs[0])
 
     if model=='bdf':
