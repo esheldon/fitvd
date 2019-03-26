@@ -283,6 +283,9 @@ class Processor(object):
 
         if len(mbobs) < self.mb_meds.nband:
             return None, procflags.NO_DATA
+        for obslist in mbobs:
+            if len(obslist)==0:
+                return None, procflags.NO_DATA
 
         if self.config['skip_first_epoch']:
             mbobs, flags =self._remove_first_epoch(mbobs)
