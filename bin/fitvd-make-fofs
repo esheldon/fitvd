@@ -60,6 +60,8 @@ def main():
             fof_conf,
             mask=mask,
         )
+
+        eu.ostools.makedirs_fromfile(args.output)
         print('writing:',args.output)
         with fitsio.FITS(args.output,'rw',clobber=True) as fits:
             fits.write(fofs,extname='fofs')
