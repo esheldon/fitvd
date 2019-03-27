@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+"""
+this version takes a file list, so it does not check if there are missing
+splits
+
+it also does not use mpi
+"""
+
+import os
+import fitsio
+import meds
+import esutil as eu
+import argparse
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--meds',required=True,help='a meds file')
+parser.add_argument('--output',required=True,help='output collated file name')
+parser.add_argument('flist',nargs='+',help='list of files to collate')
+
+def get_data(fname):
+    print('reading:',fname)
+    with fitsio.FITS(fname) as fits:
+        model_fits = fits['model_fits'][:]
+        if 'epochs_data' in fits:
+            epochs_data = fits['epochs_data'][:]
+        else:
+            epochs_data=None
+
+        if 'fof_data' in fits:
+            fof_data = fits['fof_data'][:]
+        else:
+            fof_data=None
+
+    return model_fits, epochs_data, fof_data
+
+def check_data(args, model_fits):
+    """
+    make sure all the objects are present
+    """
+
+    m = meds.MEDS(args.meds)
+
+    mmeds, mfits = eu.numpy_util.match(m['id'], model_fits['id'])
+    if mfits.size != m['id'].size:
+        raise RuntimeError('only %d/%d objects found in output' % (mfits.size, m['id'].size))
+
+
+def main():
+    args=parser.parse_args()
+
+    flist = [f for f in args.flist]
+    flist.sort()
+
+    mlist=[]
+    elist=[]
+    foflist=[]
+
+    for f in flist:
+
+        m, e, f = get_data(f)
+
+        if m is not None:
+            mlist.append(m)
+        if e is not None:
+            elist.append(e)
+        if f is not None:
+            foflist.append(f)
+
+    model_fits = eu.numpy_util.combine_arrlist(mlist)
+    epochs_data = eu.numpy_util.combine_arrlist(elist)
+    fof_data = eu.numpy_util.combine_arrlist(foflist)
+
+    s = model_fits['id'].argsort()
+    model_fits = model_fits[s]
+
+    s = epochs_data['id'].argsort()
+    epochs_data = epochs_data[s]
+
+    s = fof_data['fof_id'].argsort()
+    fof_data = fof_data[s]
+
+    check_data(args, model_fits)
+
+    print('writing:',args.output)
+    eu.ostools.makedirs_fromfile(args.output)
+    with fitsio.FITS(args.output,'rw', clobber=True) as fits:
+        fits.write(model_fits, extname='model_fits')
+        fits.write(epochs_data, extname='epochs_data')
+        fits.write(fof_data, extname='fof_data')
+
+
+if __name__=='__main__':
+    main()
