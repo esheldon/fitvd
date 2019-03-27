@@ -839,6 +839,7 @@ class Processor(object):
         write the output as well as information from the epochs
         """
         logger.info('writing output: %s' % self.args.output)
+        eu.ostools.makedirs_fromfile(self.args.output)
         with fitsio.FITS(self.args.output,'rw',clobber=True) as fits:
             fits.write(output, extname='model_fits')
             if epochs_data is not None:
