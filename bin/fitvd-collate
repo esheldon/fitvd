@@ -6,6 +6,8 @@ splits
 it also does not use mpi
 """
 
+from __future__ import print_function
+
 import os
 import fitsio
 import meds

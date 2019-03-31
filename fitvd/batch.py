@@ -8,6 +8,8 @@ TODO
     - make it write a fof making script
       note it uses multiple cores via numba+mkl
 """
+from __future__ import print_function
+
 import os
 import numpy as np
 import yaml

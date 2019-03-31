@@ -22,6 +22,7 @@ from . import vis
 from . import util
 from . import desbits
 from . import procflags
+from .procflags import get_flagname
 from . import fofs
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class Processor(object):
         if flags != 0:
             output, epochs_data = self._get_empty_output(indices)
             output['flags'] = flags
-            output['flagstr'] = procflags.get_flagname(flags)
+            output['flagstr'] = get_flagname(flags)
         else:
 
             if self.args.save or self.args.show:
@@ -108,7 +109,8 @@ class Processor(object):
                 ntry=self.config['mof']['ntry'],
             )
 
-        logger.info('fit result: %s' % ( str(output['flagstr'][0],'utf-8') ))
+        
+        logger.info('fit result: %s' % get_flagname(output['flags'][0]) )
 
         self._add_extra_outputs(indices, output, fofid)
 
