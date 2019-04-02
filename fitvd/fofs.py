@@ -1,3 +1,7 @@
+"""
+Original code by Matt Becker, modified to use ra/dec and radius
+by Erin Sheldon
+"""
 from __future__ import print_function
 
 import os
