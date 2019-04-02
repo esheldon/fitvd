@@ -198,8 +198,6 @@ class MEDSNbrs(object):
             nbr_numbers = np.array([-1],dtype=int)
             return nbr_numbers
 
-        lmr = self.l[mindex] - self.r
-
         q, = np.where(
             (self.l[mindex] < self.r)
             &
