@@ -4,6 +4,7 @@ import os
 import copy
 import numpy as np
 import mof
+import esutil as eu
 
 from .pbar import prange
 
@@ -102,6 +103,27 @@ class MEDSNbrs(object):
 
     def _init_bounds_by_radius(self):
 
+
+        # might be shifted
+        ra, dec = self._get_shifted_positions()
+        r = self._get_radius()
+
+        med_ra = np.median(ra)
+        med_dec = np.median(dec)
+        ra_diff = (ra - med_ra) * 3600.0
+        dec_diff = (dec - med_dec) * 3600.0
+
+        cosdec = np.cos( np.radians(dec) )
+        self.l = (ra_diff - r)*cosdec
+        self.r = (ra_diff + r)*cosdec
+        self.b = (dec_diff - r)
+        self.t = (dec_diff + r)
+
+    def _get_radius(self):
+        """
+        get radius for offset calculations
+        """
+
         radius_name=self.conf['radius_column']
 
         min_radius=self.conf.get('min_radius_arcsec',None)
@@ -115,9 +137,6 @@ class MEDSNbrs(object):
 
         m=self.meds
 
-        med_ra = np.median( m['ra'] )
-        med_dec = np.median( m['dec'] )
-
         r = m[radius_name].copy()
 
         r *= self.conf['radius_mult']
@@ -126,17 +145,28 @@ class MEDSNbrs(object):
 
         r += self.conf['padding_arcsec']
 
-        # factor of 2 because this should be a diameter as it is used later
-        diameter = r*2
-        self.sze = diameter
+        return r
 
-        ra_diff = (m['ra'] - med_ra)*3600.0
-        dec_diff = (m['dec'] - med_dec)*3600.0
+    def _get_shifted_positions(self):
+        """
+        to simplify the FoF calculations we want to be away
+        from ra/dec boundaries. we assume the ra range covered
+        by this data is not larger than 20 degrees
 
-        self.l = ra_diff - r
-        self.r = ra_diff + r
-        self.b = dec_diff - r
-        self.t = dec_diff + r
+        We also assume we are not close to the poles, so dec is not modified.
+        """
+        m=self.meds
+
+        ra = m['ra'].copy()
+        dec = m['dec'].copy()
+
+        min_ra = ra.min()
+        max_ra = ra.max()
+
+        if min_ra < 20 or max_ra > 340:
+            ra = eu.coords.shiftra(ra, shift=180)
+
+        return ra, dec
 
 
     def get_nbrs(self,verbose=True):
@@ -167,6 +197,8 @@ class MEDSNbrs(object):
 
             nbr_numbers = np.array([-1],dtype=int)
             return nbr_numbers
+
+        lmr = self.l[mindex] - self.r
 
         q, = np.where(
             (self.l[mindex] < self.r)
