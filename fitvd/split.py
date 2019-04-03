@@ -183,6 +183,7 @@ def get_splits_variable_fixnum(fofs, nsplits, threshold):
         diff = tnsplits - nsplits
 
         if diff < 0:
+            print('cannot find exact match, lumping last chunks')
             # we crossed 0 so we didn't find it.
             # just lump the last bits together
             last_chunksize = chunksize-1
