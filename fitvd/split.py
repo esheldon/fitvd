@@ -51,17 +51,16 @@ def get_splits_variable(fofs, chunksize, threshold, fast=True):
     """
 
     h, rev = eu.stat.histogram(fofs['fofid'], binsize=1, rev=True)
-
-    nfofs = np.unique(fofs['fofid']).size
+    nfofs = h.size
 
     if fast:
         fof_splits = make_splits_struct(nfofs)
-        _get_splits_variable_fast(chunksize, threshold, h, rev, fof_splits)
+        nsplits=_get_splits_variable_fast(chunksize, threshold, h, rev, fof_splits)
+        fof_splits = fof_splits[:nsplits]
     else:
 
         fof_splits = []
 
-        nfofs = len(h)
         start=0
         for fofind in range(len(h)):
             if rev[fofind] != rev[fofind+1]:
@@ -146,7 +145,8 @@ def _get_splits_variable_fast(chunksize, threshold, h, rev, fof_splits):
 def get_splits_variable_fixnum(fofs, nsplits, threshold):
     """
     split FoF groups into chunks, with large FoF groups
-    in their own chunk
+    in their own chunk.  A fixed number of splits is used,
+    which means sometimes we will need to break the rules
 
     parameters
     ----------
