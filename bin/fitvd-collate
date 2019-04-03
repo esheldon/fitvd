@@ -17,7 +17,10 @@ import argparse
 parser=argparse.ArgumentParser()
 parser.add_argument('--meds',required=True,help='a meds file')
 parser.add_argument('--output',required=True,help='output collated file name')
-parser.add_argument('flist',nargs='+',help='list of files to collate')
+parser.add_argument('-F',action='store_true',
+                    help=('the argument is a path to a file holding a '
+                          'list of files to be collated'))
+parser.add_argument('flist',nargs='+',help='list of files to collate, or a filename if -F is set')
 
 def get_data(fname):
     print('reading:',fname)
@@ -46,12 +49,23 @@ def check_data(args, model_fits):
     if mfits.size != m['id'].size:
         raise RuntimeError('only %d/%d objects found in output' % (mfits.size, m['id'].size))
 
+def get_flist(args):
+    if args.F:
+        flist=[]
+        with open(args.flist[0]) as fobj:
+            for line in fobj:
+                flist.append( line.strip() )
+    else:
+        flist = [f for f in args.flist]
+
+    flist.sort()
+
+    return flist
 
 def main():
     args=parser.parse_args()
 
-    flist = [f for f in args.flist]
-    flist.sort()
+    flist = get_flist(args)
 
     mlist=[]
     elist=[]
