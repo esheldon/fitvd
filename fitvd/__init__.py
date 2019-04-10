@@ -1,4 +1,4 @@
-__version__='v0.9.3.1'
+__version__='v0.9.3.2'
 
 from . import fofs
 from . import fitting
