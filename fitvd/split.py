@@ -142,7 +142,7 @@ def _get_splits_variable_fast(chunksize, threshold, h, rev, fof_splits):
 
     return isplit
 
-def get_splits_variable_fixnum(fofs, nsplits, threshold):
+def get_splits_variable_fixnum(fofs, nsplits, threshold, maxiter=3000):
     """
     split FoF groups into chunks, with large FoF groups
     in their own chunk.  A fixed number of splits is used,
@@ -173,10 +173,11 @@ def get_splits_variable_fixnum(fofs, nsplits, threshold):
     print('nfofs:',nfofs)
     print('target nsplits:',nsplits)
 
+    iter=1
     while True:
         tnsplits = _get_splits_variable_fast(chunksize, threshold, h, rev, fof_splits)
 
-        print('chunksize:',chunksize,'nsplits:',tnsplits)
+        print('iter:',iter,'threshold:',threshold,'chunksize:',chunksize,'nsplits:',tnsplits)
         if tnsplits == nsplits:
             break
 
@@ -193,6 +194,10 @@ def get_splits_variable_fixnum(fofs, nsplits, threshold):
             break
 
         chunksize += 1
+        iter+=1
+
+        if iter > maxiter:
+            return get_splits_variable_fixnum(fofs, nsplits, threshold+1, maxiter=maxiter)
 
     return fof_splits[0:nsplits]
 
