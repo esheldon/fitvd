@@ -626,6 +626,20 @@ class Processor(object):
             new_mbobs.append(new_obslist)
         return new_mbobs
 
+    def _extract_radius(self, band, obslist, index):
+        radcol = self.config['radius_column']
+        m=self.mb_meds.mlist[band]
+        cat=m.get_cat()
+
+        rad=None
+        if radcol in cat.dtype.names:
+            rad = m[radcol][index]*3.0
+            if 'arcsec' not in radcol:
+                scale = obslist[0].jacobian.get_scale()
+                rad = rad*scale
+
+        return rad
+
     def _trim_images(self, mbobs, index):
         """
         trim the images down to a minimal size
@@ -641,16 +655,23 @@ class Processor(object):
         new_mbobs=ngmix.MultiBandObsList()
         new_mbobs.meta.update( mbobs.meta )
 
-        radcol = self.config['radius_column']
+        # make sure at least one has it
+        radone=None
+        for band, obslist in  enumerate(mbobs):
+            radone = self._extract_radius(band, obslist, index)
+            if radone is not None:
+                break
+
+        assert radone is not None, \
+            'at least one band should have radius_column "%s"' % radcol
 
         for band,obslist in enumerate(mbobs):
 
             m=self.mb_meds.mlist[band]
-            #rad = m['iso_radius_arcsec'][index]*3.0
-            rad = m[radcol][index]*3.0
-            if 'arcsec' not in radcol:
-                scale = obslist[0].jacobian.get_scale()
-                rad = rad*scale
+
+            rad = self._extract_radius(band, obslist, index)
+            if rad is None:
+                rad = radone
 
             new_obslist=ngmix.ObsList()
             new_obslist.meta.update( obslist.meta )
