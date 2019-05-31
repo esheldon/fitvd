@@ -50,8 +50,9 @@ def main():
         radcol = fof_conf['radius_column']
         if 'arcsec' not in radcol:
             print('converting radius to arcsec')
-            tobs = m.get_obs(0,0)
-            scale = tobs.jacobian.scale
+            j = m.get_ngmix_jacobian(0,0)
+            #tobs = m.get_obs(0,0)
+            scale = j.scale
             rad = cat[radcol]*scale
             cat[radcol] = rad
 
