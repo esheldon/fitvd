@@ -35,6 +35,7 @@ class Processor(object):
         self.args=args
 
         self._set_rng()
+        self._set_blacklist()
         self._load_conf()
         self._load_meds_files()
         self._load_fofs()
@@ -293,6 +294,11 @@ class Processor(object):
             mbobs, flags =self._remove_first_epoch(mbobs)
             if flags != 0:
                 return None, flags
+
+        if self.blacklist is not None:
+            mbobs = util.check_blacklist(mbobs, self.blacklist)
+            if mbobs is None:
+                return None, procflags.NO_DATA
 
         # need to do this *before* trimming
         if self.config['reject_outliers']:
@@ -874,6 +880,13 @@ class Processor(object):
         set the rng given the input seed
         """
         self.rng = np.random.RandomState(self.args.seed)
+
+    def _set_blacklist(self):
+        blacklist = None
+        if self.args.blacklist is not None:
+            blacklist = files.read_blacklist(self.args.blacklist)
+
+        self.blacklist = blacklist
 
     def _load_conf(self):
         """

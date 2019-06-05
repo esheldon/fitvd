@@ -474,3 +474,19 @@ class MEDSPSFEx(ngmix.medsreaders.NGMixMEDS):
         self.psfex = psfex.PSFEx(psfex_name)
 
 
+def read_blacklist(fname):
+    """
+    read a black list file
+
+    The format should be one string per line
+    """
+
+    blacklist ={}
+    logger.info('loading blacklist: %s' % fname)
+    with open(fname) as fobj:
+        for line in fobj:
+            name = line.strip()
+            blacklist[name] = {'name': name}
+
+    return blacklist
+
