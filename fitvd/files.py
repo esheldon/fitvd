@@ -488,5 +488,14 @@ def read_blacklist(fname):
             name = line.strip()
             blacklist[name] = {'name': name}
 
+            # make sure versions with and without .fz are in there
+            if name[-5:] == '.fits':
+                fzname = name + '.fz'
+                blacklist[fzname] = {'name': fzname}
+            elif name[-8:] == '.fits.fz':
+                nofzname = name.replace('.fz','')
+                blacklist[nofzname] = {'name': nofzname}
+
+
     return blacklist
 

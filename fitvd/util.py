@@ -196,7 +196,7 @@ def check_blacklist(mbobs, blacklist):
                 file_path = obs.meta['file_path']
 
                 if file_path in blacklist:
-                    logger.debug('removing blacklisted obs from %s' %
+                    logger.debug('removing blacklisted obs from "%s"' %
                                  file_path)
                 else:
                     new_obslist.append(obs)
