@@ -360,6 +360,11 @@ class ShellBatch(dict):
         else:
             d['offsets'] = ''
 
+        if self.args.blacklist is not None:
+            d['blacklist'] = '--blacklist=%s' % self.args.blacklist
+        else:
+            d['blacklist'] = ''
+
         text=_script_template % d
 
         logger.info('script: %s' % fname)
@@ -721,6 +726,7 @@ fitvd \
     %(fofs_text)s \
     %(model_pars)s \
     %(offsets)s \
+    %(blacklist)s \
     $meds &> $tmplog
 
 mv -vf $tmplog $logfile
