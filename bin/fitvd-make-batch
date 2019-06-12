@@ -18,8 +18,6 @@ parser.add_argument('--skip-large',action='store_true',
 parser.add_argument('--missing',action='store_true')
 parser.add_argument('--verify',action='store_true')
 
-parser.add_argument('--model-pars-run',
-                    help='run to use for model pars when doing flux only fitting')
 parser.add_argument('--offsets', help='offsets for the bands')
 parser.add_argument('--blacklist', help='file blacklists')
 

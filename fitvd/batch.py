@@ -350,8 +350,11 @@ class ShellBatch(dict):
         else:
             d['fofs_text'] = ''
 
-        if self.args.model_pars_run is not None:
-            pars_file = files.get_collated_file(self.args.model_pars_run, tilename)
+        if 'model_pars_run' in self:
+            pars_file = files.get_collated_file(
+                self['model_pars_run'],
+                tilename,
+            )
             d['model_pars'] = '--model-pars=%s' % pars_file
         else:
             d['model_pars'] = ''
@@ -398,7 +401,7 @@ class ShellBatch(dict):
             m = meds.MEDS(meds_file)
             cat = m.get_cat()
             fofst = fofs.make_singleton_fofs(cat)
-            
+
         return fofst
 
 

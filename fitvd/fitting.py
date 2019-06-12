@@ -1014,11 +1014,15 @@ def get_stamp_guesses(list_of_obs,
     return guess
 
 
-def get_stamp_flux_guesses(list_of_obs, rng):
+def get_stamp_flux_guesses(list_of_obs, detband, model, rng, prior=None):
     """
     get a guess based on metadata in the obs
 
     T guess is gotten from detband
+
+    these are not used
+    detband, model, prior
+
     """
 
     nband = len(list_of_obs[0])
