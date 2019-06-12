@@ -533,6 +533,52 @@ class MOFFitter(FitterBase):
 
         return output
 
+class MOFFluxFitter(MOFFitter):
+    """
+    take structural parameters from input model pars, just
+    fit the flux
+    """
+    def _set_guess_func(self):
+        self._guess_func = get_stamp_flux_guesses
+
+    def _set_mof_fitter_class(self):
+        self._mof_fitter_class = mof.MOFFlux
+
+    def _get_dtype(self):
+        npars = self.npars
+        nband = self.nband
+
+        n = self.namer
+        dt = [
+            ('id', 'i8'),
+            ('ra', 'f8'),
+            ('dec', 'f8'),
+            ('fof_id', 'i8'), # fof id within image
+            ('flags', 'i4'),
+            ('flagstr', 'S18'),
+            ('masked_frac', 'f4'),
+            ('psf_g', 'f8', 2),
+            ('psf_T', 'f8'),
+            ('psf_flux_flags', 'i4', nband),
+            ('psf_flux', 'f8', nband),
+            ('psf_mag', 'f8', nband),
+            ('psf_flux_err', 'f8', nband),
+            ('psf_flux_s2n', 'f8', nband),
+            (n('flags'), 'i4'),
+            (n('ntry'), 'i2'),
+            (n('nfev'), 'i4'),
+            (n('s2n'), 'f8'),
+            (n('pars'), 'f8', npars),
+            (n('pars_err'), 'f8', npars),
+            (n('pars_cov'), 'f8', (npars, npars)),
+            (n('flux'), 'f8', nband),
+            (n('mag'), 'f8', nband),
+            (n('flux_cov'), 'f8', (nband, nband)),
+            (n('flux_err'), 'f8', nband),
+        ]
+
+        return dt
+
 
 class MOFFitterGS(MOFFitter):
     def make_image(self, iobj, band=0, obsnum=0):
@@ -967,6 +1013,43 @@ def get_stamp_guesses(list_of_obs,
         logger.debug('guess[%d]: %s' % (i,format_pars(guess[beg:beg+flux_start+band+1])))
     return guess
 
+
+def get_stamp_flux_guesses(list_of_obs, rng):
+    """
+    get a guess based on metadata in the obs
+
+    T guess is gotten from detband
+    """
+
+    nband = len(list_of_obs[0])
+    npars_per = nband
+
+    nobj = len(list_of_obs)
+
+    npars_tot = nobj*npars_per
+    guess = np.zeros(npars_tot)
+
+    for i, mbo in enumerate(list_of_obs):
+
+        beg = i*npars_per
+
+        for band, obslist in enumerate(mbo):
+            obslist = mbo[band]
+            scale = obslist[0].jacobian.scale
+            band_meta = obslist.meta
+
+            flux = band_meta['psf_flux']
+
+            if flux < 0.01:
+                flux = 0.01
+
+            flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
+
+            guess[beg+band] = flux_guess
+
+    return guess
+
+
 def get_stamp_guesses_gs(list_of_obs,
                          detband,
                          model,
@@ -1049,6 +1132,7 @@ def get_stamp_guesses_gs(list_of_obs,
 
     return guess
 
+
 def get_stamp_flux_guesses_gs(list_of_obs, rng):
     """
     get a guess based on metadata in the obs
@@ -1086,5 +1170,3 @@ def get_stamp_flux_guesses_gs(list_of_obs, rng):
             guess[beg+band] = flux_guess
 
     return guess
-
-

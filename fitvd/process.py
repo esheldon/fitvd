@@ -913,24 +913,13 @@ class Processor(object):
         currently only MOF
         """
         parspace = self.config['parspace']
-        if parspace=='ngmix':
-            self.fitter = fitting.MOFFitter(
-                self.config,
-                self.mb_meds.nband,
-                self.rng,
-            ) 
-        elif parspace=='galsim':
-            self.fitter = fitting.MOFFitterGS(
-                self.config,
-                self.mb_meds.nband,
-                self.rng,
-            ) 
-        elif parspace=='galsim-flux':
+
+        if 'flux' in parspace:
             assert self.args.model_pars is not None, \
                 'for flux fitting send model pars'
 
             model_pars = fitsio.read(self.args.model_pars)
-            
+
             mm, mmeds = eu.numpy_util.match(
                 model_pars['id'],
                 self.mb_meds.mlist[0]['id'],
@@ -940,15 +929,35 @@ class Processor(object):
 
             self.model_pars = model_pars[mm]
 
+        if parspace=='ngmix':
+            self.fitter = fitting.MOFFitter(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            )
+        elif parspace=='galsim':
+            self.fitter = fitting.MOFFitterGS(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            )
+        elif parspace == 'ngmix-flux':
+            self.fitter = fitting.MOFFluxFitter(
+                self.config,
+                self.mb_meds.nband,
+                self.rng,
+            )
+
+        elif parspace=='galsim-flux':
             self.fitter = fitting.MOFFluxFitterGS(
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
-            ) 
+            )
 
         else:
             raise ValueError('bad parspace "%s", should be '
-                             '"ngmix" or "galsim" or "galsim-flux"')
+                             '"ngmix","galsim","ngmix-flux","galsim-flux"')
 
     def _load_fofs(self):
         """

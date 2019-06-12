@@ -350,8 +350,9 @@ class ShellBatch(dict):
         else:
             d['fofs_text'] = ''
 
-        if self.args.model_pars is not None:
-            d['model_pars'] = '--model-pars=%s' % self.args.model_pars
+        if self.args.model_pars_run is not None:
+            pars_file = files.get_collated_file(self.args.model_pars_run, tilename)
+            d['model_pars'] = '--model-pars=%s' % pars_file
         else:
             d['model_pars'] = ''
 
