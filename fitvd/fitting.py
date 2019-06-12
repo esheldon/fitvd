@@ -545,7 +545,8 @@ class MOFFluxFitter(MOFFitter):
         self._mof_fitter_class = mof.MOFFlux
 
     def _get_dtype(self):
-        npars = self.npars
+        # npars = self.npars
+        npars = self.nband
         nband = self.nband
 
         n = self.namer
