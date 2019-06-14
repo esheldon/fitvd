@@ -37,7 +37,7 @@ def get_mask_basedir():
     """
     get the collated file name
     """
-    bdir = get_fitvd_dir()
+    bdir = os.environ['MEDS_DIR']
     return os.path.join(
         bdir,
         'masks',
