@@ -33,7 +33,7 @@ def get_fitvd_dir():
     """
     return os.environ['FITVD_DIR']
 
-def get_mask_dir():
+def get_mask_basedir():
     """
     get the collated file name
     """
@@ -43,9 +43,41 @@ def get_mask_dir():
         'masks',
     )
 
-def get_mask_file(tilename):
+def _extract_mask_tilename(tilename_full):
     """
-    get the collated file name
+    mask files don't have reqnum/attnum
+    """
+    if '_r' in tilename_full:
+        tilename = '_'.join( tilename_full.split('_')[0:2] )
+    else:
+        tilename = tilename_full
+
+    return tilename
+
+def _extract_mask_tilefront(tilename_full):
+    """
+    get the front part, e.g. SN-C3
+    """
+    tilename = _extract_mask_tilename(tilename_full)
+    return tilename.split('_')[0]
+
+def get_mask_dir(tilename_full):
+    """
+    files are in mask_basedir/tilename/tilename.satstars.dat
+    where tilename has reqnum/attnum removed
+    """
+    tilefront = _extract_mask_tilefront(tilename_full)
+
+    bdir = get_mask_basedir()
+    return os.path.join(
+        bdir,
+        tilefront,
+    )
+
+def get_mask_file(tilename_full):
+    """
+    get the mask file name.  Currently this is just the stars file but we will
+    eventually expand to a full mangle mask with other types of things in it
 
     Parameters
     ----------
@@ -53,14 +85,14 @@ def get_mask_file(tilename):
         Either the basic tilename such as SN-C3_C10
         or with reqnum/attnum SN-C3_C10_r3688p01
     """
-    d = get_mask_dir()
+    d = get_mask_dir(tilename_full)
 
-    if '_r' in tilename:
-        tilename = '_'.join( tilename.split('_')[0:2] )
+    # without reqnum etc.
+    mask_tilename = _extract_mask_tilename(tilename_full)
 
     return os.path.join(
         d,
-        'mask-%s.dat' % tilename
+        '%s.satstars.dat' % mask_tilename,
     )
 
 
