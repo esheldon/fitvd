@@ -203,7 +203,7 @@ class MOFFitter(FitterBase):
         self._set_mof_fitter_class()
         self._set_guess_func()
 
-    def go(self, mbobs_list, ntry=2, get_fitter=False):
+    def go(self, mbobs_list, ntry=2, get_fitter=False, skip_fit=False):
         """
         run the multi object fitter
 
@@ -213,6 +213,10 @@ class MOFFitter(FitterBase):
             One for each object.  If it is a simple
             MultiBandObsList it will be converted
             to a list
+
+        skip_fit: bool
+            If True, only fit the psfs, skipping the main deblending
+            fit
 
         returns
         -------
@@ -237,30 +241,38 @@ class MOFFitter(FitterBase):
                 prior=self.mof_prior,
                 lm_pars=lm_pars,
             )
-            for i in range(ntry):
-                logger.debug('try: %d' % (i+1))
-                guess=self._guess_func(
-                    mbobs_list,
-                    mofc['detband'],
-                    mofc['model'],
-                    self.rng,
-                    prior=self.mof_prior,
-                )
-                #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
-                fitter.go(guess)
-
-                res=fitter.get_result()
-                if res['flags']==0:
-                    break
-
-            res['ntry'] = i+1
-
-            if res['flags'] != 0:
-                res['main_flags'] = procflags.OBJ_FAILURE
-                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            if skip_fit:
+                # we use a and expect the caller to set the flag
+                res={
+                    'ntry':0,
+                    'main_flags':-1,
+                    'main_flagstr': 'none',
+                }
             else:
-                res['main_flags'] = 0
-                res['main_flagstr'] = procflags.get_flagname(0)
+                for i in range(ntry):
+                    logger.debug('try: %d' % (i+1))
+                    guess=self._guess_func(
+                        mbobs_list,
+                        mofc['detband'],
+                        mofc['model'],
+                        self.rng,
+                        prior=self.mof_prior,
+                    )
+                    #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
+                    fitter.go(guess)
+
+                    res=fitter.get_result()
+                    if res['flags']==0:
+                        break
+
+                res['ntry'] = i+1
+
+                if res['flags'] != 0:
+                    res['main_flags'] = procflags.OBJ_FAILURE
+                    res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+                else:
+                    res['main_flags'] = 0
+                    res['main_flagstr'] = procflags.get_flagname(0)
 
         except NoDataError as err:
             epochs_data=None
@@ -662,7 +674,7 @@ class MOFFluxFitterGS(MOFFitterGS):
         self._set_mof_fitter_class()
         self._set_guess_func()
 
-    def go(self, mbobs_list, ntry=2, get_fitter=False):
+    def go(self, mbobs_list, ntry=2, get_fitter=False, skip_fit=False):
         """
         run the multi object fitter
 
@@ -672,6 +684,9 @@ class MOFFluxFitterGS(MOFFitterGS):
             One for each object.  If it is a simple
             MultiBandObsList it will be converted
             to a list
+        skip_fit: bool
+            If True, only fit the psfs, skipping the main deblending
+            fit
 
         returns
         -------
@@ -692,25 +707,34 @@ class MOFFluxFitterGS(MOFFitterGS):
                 mbobs_list,
                 mofc['model'],
             )
-            for i in range(ntry):
-                guess=self._guess_func(
-                    mbobs_list,
-                    self.rng,
-                )
-                fitter.go(guess)
-
-                res=fitter.get_result()
-                if res['flags']==0:
-                    break
-
-            res['ntry'] = i+1
-
-            if res['flags'] != 0:
-                res['main_flags'] = procflags.OBJ_FAILURE
-                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            if skip_fit:
+                # we use a and expect the caller to set the flag
+                res={
+                    'ntry':0,
+                    'main_flags':-1,
+                    'main_flagstr': 'none',
+                }
             else:
-                res['main_flags'] = 0
-                res['main_flagstr'] = procflags.get_flagname(0)
+
+                for i in range(ntry):
+                    guess=self._guess_func(
+                        mbobs_list,
+                        self.rng,
+                    )
+                    fitter.go(guess)
+
+                    res=fitter.get_result()
+                    if res['flags']==0:
+                        break
+
+                res['ntry'] = i+1
+
+                if res['flags'] != 0:
+                    res['main_flags'] = procflags.OBJ_FAILURE
+                    res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+                else:
+                    res['main_flags'] = 0
+                    res['main_flagstr'] = procflags.get_flagname(0)
 
 
         except NoDataError as err:

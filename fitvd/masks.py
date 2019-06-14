@@ -74,6 +74,8 @@ def read_mask(fname):
     data = {}
     with open(fname) as fobj:
         for line in fobj:
+            line = line.strip()
+
             if '#' in line or '---' in line:
                 continue
 
@@ -83,16 +85,20 @@ def read_mask(fname):
             dec = float(ls[2])
             rad_arcsec = float(ls[4])
 
-            if ind in data:
-                radmax = max(rad_arcsec, data[ind]['rad_arcsec'])
-                data[ind]['rad_arcsec'] = radmax
+            if rad_arcsec > 0:
+
+                if ind in data:
+                    radmax = max(rad_arcsec, data[ind]['rad_arcsec'])
+                    data[ind]['rad_arcsec'] = radmax
+                else:
+                    data[ind] = {
+                        'id': ind,
+                        'ra': ra,
+                        'dec': dec,
+                        'rad_arcsec': rad_arcsec,
+                    }
             else:
-                data[ind] = {
-                    'id': ind,
-                    'ra': ra,
-                    'dec': dec,
-                    'rad_arcsec': rad_arcsec,
-                }
+                print('found zero rad:',line)
 
     dt = [
         ('id', 'i8'),

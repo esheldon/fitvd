@@ -30,6 +30,8 @@ TOO_FEW_PIXELS=2**6
 # all epochs had the center masked
 ALL_CENTERS_MASKED=2**7
 
+# we skipped the fit because FoF group too large
+FOF_TOO_LARGE = 2**8
 
 FLAG_MAP={
     'ok':0,
@@ -57,6 +59,9 @@ FLAG_MAP={
 
     'all_centers_masked': ALL_CENTERS_MASKED,
     ALL_CENTERS_MASKED: 'all_centers_masked',
+
+    'fof_too_large': FOF_TOO_LARGE,
+    FOF_TOO_LARGE: 'fof_too_large',
 }
 
 _numorder=[key for key in FLAG_MAP if isinstance(key,int)]

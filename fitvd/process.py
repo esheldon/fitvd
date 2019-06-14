@@ -88,8 +88,17 @@ class Processor(object):
         fof_data = self._get_fof_struct()
 
         w,=np.where(self.fofs['fofid'] == fofid)
-        logger.info('FoF size: %d' % w.size)
+        fof_size = w.size
+        logger.info('FoF size: %d' % fof_size)
         assert w.size > 0,'no objects found for FoF id %d' % fofid
+
+        maxs = self.config['max_fof_size']
+        if fof_size > maxs:
+            logger.info('skipping FoF group with '
+                        'size %d > %d' % (fof_size, maxs))
+            skip_fit = True
+        else:
+            skip_fit = False
 
         indices=self.fofs['number'][w]-1
 
@@ -108,9 +117,13 @@ class Processor(object):
             output, epochs_data = self.fitter.go(
                 mbobs_list,
                 ntry=self.config['mof']['ntry'],
+                skip_fit=skip_fit,
             )
+            if skip_fit:
+                output['flags'] = procflags.FOF_TOO_LARGE
+                output['flagstr'] = procflags.get_flagname(procflags.FOF_TOO_LARGE)
 
-        
+
         logger.info('fit result: %s' % get_flagname(output['flags'][0]) )
 
         self._add_extra_outputs(indices, output, fofid)
@@ -901,6 +914,9 @@ class Processor(object):
         self.config['image_flagnames_to_mask'] = \
             self.config.get('image_flagnames_to_mask',None)
 
+        self.config['max_fof_size'] = \
+            self.config.get('max_fof_size', np.inf)
+
         if self.config['image_flagnames_to_mask'] is not None:
             self.config['image_flagvals_to_mask'] = desbits.get_flagvals(
                 self.config['image_flagnames_to_mask']
@@ -918,6 +934,7 @@ class Processor(object):
             assert self.args.model_pars is not None, \
                 'for flux fitting send model pars'
 
+            logger.info('reading model pars: %s' % self.args.model_pars)
             model_pars = fitsio.read(self.args.model_pars)
 
             mm, mmeds = eu.numpy_util.match(
