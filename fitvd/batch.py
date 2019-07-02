@@ -172,7 +172,8 @@ class FoFBatchBase(dict):
 
         fof_band = self.run_conf['fof_band']
 
-        if 'mask' in self.fit_conf:
+        #if 'mask' in self.fit_conf:
+        if self.fit_conf.get('use_mask', False):
             mask_file = files.get_mask_file(tilename)
             mask_text = '--mask=%s' % mask_file
         else:

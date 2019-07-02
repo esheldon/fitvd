@@ -10,6 +10,7 @@ import ngmix
 
 logger = logging.getLogger(__name__)
 
+
 def read_yaml(fname):
     """
     read the yaml file
@@ -19,12 +20,13 @@ def read_yaml(fname):
 
     return data
 
+
 def extract_run_from_config(conf_name):
     """
     extrac the run id as the part before .yaml
     """
-    bname=os.path.basename(conf_name)
-    return bname.replace('.yaml','')
+    bname = os.path.basename(conf_name)
+    return bname.replace('.yaml', '')
 
 
 def get_fitvd_dir():
@@ -33,26 +35,18 @@ def get_fitvd_dir():
     """
     return os.environ['FITVD_DIR']
 
-def get_mask_basedir():
-    """
-    get the collated file name
-    """
-    bdir = os.environ['MEDS_DIR']
-    return os.path.join(
-        bdir,
-        'masks',
-    )
 
 def _extract_mask_tilename(tilename_full):
     """
     mask files don't have reqnum/attnum
     """
     if '_r' in tilename_full:
-        tilename = '_'.join( tilename_full.split('_')[0:2] )
+        tilename = '_'.join(tilename_full.split('_')[0:2])
     else:
         tilename = tilename_full
 
     return tilename
+
 
 def _extract_mask_tilefront(tilename_full):
     """
@@ -61,6 +55,8 @@ def _extract_mask_tilefront(tilename_full):
     tilename = _extract_mask_tilename(tilename_full)
     return tilename.split('_')[0]
 
+
+'''
 def get_mask_dir(tilename_full):
     """
     files are in mask_basedir/tilename/tilename.satstars.dat
@@ -73,6 +69,20 @@ def get_mask_dir(tilename_full):
         bdir,
         tilefront,
     )
+'''
+
+
+def get_mask_dir():
+    """
+    get the collated file name
+    """
+    bdir = os.environ['MEDS_DIR']
+    return os.path.join(
+        bdir,
+        'masks',
+        'healsparse',
+    )
+
 
 def get_mask_file(tilename_full):
     """
@@ -85,14 +95,16 @@ def get_mask_file(tilename_full):
         Either the basic tilename such as SN-C3_C10
         or with reqnum/attnum SN-C3_C10_r3688p01
     """
-    d = get_mask_dir(tilename_full)
+    d = get_mask_dir()
 
     # without reqnum etc.
     mask_tilename = _extract_mask_tilename(tilename_full)
 
     return os.path.join(
         d,
-        '%s.satstars.dat' % mask_tilename,
+        '%s-griz-healsparse.fits' % mask_tilename,
+        # '%s.satstars.dat' % mask_tilename,
+        # '%s-mask.hsp' % mask_tilename,
     )
 
 
@@ -106,6 +118,7 @@ def get_tempdir():
     """
     return os.environ['TMPDIR']
 
+
 def get_run_dir(run):
     """
     get the base run dir
@@ -116,55 +129,58 @@ def get_run_dir(run):
         run,
     )
 
+
 def get_fof_dir(run):
     """
     get the directory holding fofs
     """
-    run_dir=get_run_dir(run)
+    run_dir = get_run_dir(run)
     return os.path.join(
         run_dir,
         'fofs',
     )
 
+
 def get_split_dir(run, tilename):
     """
     get the split output directory
     """
-    run_dir=get_run_dir(run)
+    run_dir = get_run_dir(run)
     return os.path.join(
         run_dir,
         'splits',
         tilename,
     )
 
+
 def get_script_dir(run):
     """
     directory for scripts
     """
-    run_dir=get_run_dir(run)
+    run_dir = get_run_dir(run)
     return os.path.join(
         run_dir,
         'scripts',
     )
 
+
 def get_collated_dir(run):
     """
     get the collated directory
     """
-    run_dir=get_run_dir(run)
+    run_dir = get_run_dir(run)
     return os.path.join(
         run_dir,
         'collated',
     )
 
 
-
 def get_fof_file(run, tilename):
     """
     get the directory holding fofs
     """
-    fof_dir=get_fof_dir(run)
-    fname='%s-%s-fofs.fits' % (run, tilename)
+    fof_dir = get_fof_dir(run)
+    fname = '%s-%s-fofs.fits' % (run, tilename)
     return os.path.join(
         fof_dir,
         fname,
@@ -175,29 +191,31 @@ def get_collated_file(run, tilename):
     """
     get the collated file name
     """
-    split_dir=get_collated_dir(run)
+    split_dir = get_collated_dir(run)
     fname = '%s-%s.fits' % (run, tilename)
     return os.path.join(
         split_dir,
         fname,
     )
 
+
 def get_split_output(run, tilename, start, end, ext='fits'):
     """
     get the split output file
     """
-    split_dir=get_split_dir(run, tilename)
+    split_dir = get_split_dir(run, tilename)
     fname = '%s-%s-%06d-%06d.%s' % (run, tilename, start, end, ext)
     return os.path.join(
         split_dir,
         fname,
     )
 
+
 def get_split_script_dir(run, tilename):
     """
     directory for scripts
     """
-    script_dir=get_script_dir(run)
+    script_dir = get_script_dir(run)
     return os.path.join(
         script_dir,
         tilename,
@@ -208,7 +226,7 @@ def get_split_script_path(run, tilename, start, end):
     """
     chunk processing script
     """
-    script_dir=get_split_script_dir(run, tilename)
+    script_dir = get_split_script_dir(run, tilename)
 
     fname = '%s-%s-%06d-%06d.sh' % (run, tilename, start, end)
     return os.path.join(
@@ -216,11 +234,12 @@ def get_split_script_path(run, tilename, start, end):
         fname,
     )
 
+
 def get_collate_script_path(run, tilename):
     """
     script to run the collation
     """
-    script_dir=get_script_dir(run)
+    script_dir = get_script_dir(run)
 
     fname = '%s-collate-%s.sh' % (run, tilename)
     return os.path.join(
@@ -228,19 +247,20 @@ def get_collate_script_path(run, tilename):
         fname,
     )
 
+
 def get_wq_collate_script_path(run, tilename):
     """
     script to run the collation
     """
     script = get_collate_script_path(run, tilename)
-    return script.replace('.sh','.yaml')
+    return script.replace('.sh', '.yaml')
 
 
 def get_fof_script_path(run, tilename):
     """
     directory for scripts
     """
-    script_dir=get_script_dir(run)
+    script_dir = get_script_dir(run)
 
     fname = '%s-%s-make-fofs.sh' % (run, tilename)
     return os.path.join(
@@ -248,20 +268,20 @@ def get_fof_script_path(run, tilename):
         fname,
     )
 
+
 def get_wq_fof_script_path(run, tilename):
     """
     directory for scripts
     """
     script = get_fof_script_path(run, tilename)
-    return script.replace('.sh','.yaml')
-
+    return script.replace('.sh', '.yaml')
 
 
 def get_split_wq_path(run, tilename, start, end):
     """
     directory for scripts
     """
-    script_dir=get_split_script_dir(run, tilename)
+    script_dir = get_split_script_dir(run, tilename)
 
     fname = '%s-%s-%06d-%06d.yaml' % (run, tilename, start, end)
     return os.path.join(
@@ -274,18 +294,19 @@ def get_condor_dir(run, tilename):
     """
     directory for scripts
     """
-    run_dir=get_run_dir(run)
+    run_dir = get_run_dir(run)
     return os.path.join(
         run_dir,
         'condor',
         tilename,
     )
 
+
 def get_condor_master_path(run, tilename):
     """
     master script for condor
     """
-    condor_dir=get_condor_dir(run, tilename)
+    condor_dir = get_condor_dir(run, tilename)
 
     fname = '%s-%s-master.sh' % (run, tilename)
     return os.path.join(
@@ -293,11 +314,12 @@ def get_condor_master_path(run, tilename):
         fname,
     )
 
+
 def get_condor_script(run, tilename, icondor):
     """
     submit script
     """
-    condor_dir=get_condor_dir(run, tilename)
+    condor_dir = get_condor_dir(run, tilename)
 
     fname = '%s-%s-%06d.condor' % (run, tilename, icondor)
     return os.path.join(
@@ -306,18 +328,17 @@ def get_condor_script(run, tilename, icondor):
     )
 
 
-
-
 def load_fofs(fof_filename):
     """
     load FoF information from the file
     """
     logger.info('loading fofs: %s' % fof_filename)
     with fitsio.FITS(fof_filename) as fits:
-        nbrs=fits['nbrs'][:]
-        fofs=fits['fofs'][:]
+        nbrs = fits['nbrs'][:]
+        fofs = fits['fofs'][:]
 
     return nbrs, fofs
+
 
 class StagedOutFile(object):
     """
@@ -352,9 +373,8 @@ class StagedOutFile(object):
 
         self._set_paths(fname, tmpdir=tmpdir)
 
-
     def _set_paths(self, fname, tmpdir=None):
-        fname=expandpath(fname)
+        fname = expandpath(fname)
 
         self.final_path = fname
 
@@ -375,7 +395,7 @@ class StagedOutFile(object):
             bname = os.path.basename(fname)
             self.path = os.path.join(self.tmpdir, bname)
 
-            if self.tmpdir==fdir:
+            if self.tmpdir == fdir:
                 # the user sent tmpdir as the final output dir, no
                 # staging is performed
                 self.is_temp = False
@@ -400,15 +420,15 @@ class StagedOutFile(object):
                     return
 
             if os.path.exists(self.final_path):
-                print("removing existing file:",self.final_path)
+                print("removing existing file:", self.final_path)
                 os.remove(self.final_path)
 
             makedir_fromfile(self.final_path)
 
-            print("staging out '%s' -> '%s'" % (self.path,self.final_path))
-            shutil.move(self.path,self.final_path)
+            print("staging out '%s' -> '%s'" % (self.path, self.final_path))
+            shutil.move(self.path, self.final_path)
 
-        self.was_staged_out=True
+        self.was_staged_out = True
 
     def __enter__(self):
         return self
@@ -416,14 +436,15 @@ class StagedOutFile(object):
     def __exit__(self, exception_type, exception_value, traceback):
         self.stage_out()
 
+
 def expandpath(path):
     """
     expand environment variables, user home directories (~), and convert
     to an absolute path
     """
-    path=os.path.expandvars(path)
-    path=os.path.expanduser(path)
-    path=os.path.realpath(path)
+    path = os.path.expandvars(path)
+    path = os.path.expanduser(path)
+    path = os.path.realpath(path)
     return path
 
 
@@ -431,8 +452,9 @@ def makedir_fromfile(fname):
     """
     extract the directory and make it if it does not exist
     """
-    dname=os.path.dirname(fname)
+    dname = os.path.dirname(fname)
     try_makedir(dname)
+
 
 def try_makedir(dir):
     """
@@ -440,9 +462,9 @@ def try_makedir(dir):
     """
     if not os.path.exists(dir):
         try:
-            print("making directory:",dir)
+            print("making directory:", dir)
             os.makedirs(dir)
-        except:
+        except FileExistsError:
             # probably a race condition
             pass
 
@@ -451,10 +473,11 @@ def get_psfex_name(meds_filename):
     """
     get the DES psfex name given the meds filename
     """
-    d,f = os.path.split(meds_filename)
-    front = f[0: f.find('_meds') ]
+    d, f = os.path.split(meds_filename)
+    front = f[0: f.find('_meds')]
     fname = '%s_%s' % (front, 'psfcat.psf')
     return os.path.join(d, fname)
+
 
 class MEDSPSFEx(ngmix.medsreaders.NGMixMEDS):
     """
@@ -463,9 +486,9 @@ class MEDSPSFEx(ngmix.medsreaders.NGMixMEDS):
     """
     def __init__(self, meds_filename, psfex_name=None):
         self._load_psfex(meds_filename, psfex_name)
-        super(MEDSPSFEx,self).__init__(meds_filename)
+        super(MEDSPSFEx, self).__init__(meds_filename)
 
-        assert np.all(self['ncutout']==1),'only support a single cutout'
+        assert np.all(self['ncutout'] == 1), 'only support a single cutout'
 
     def has_psf(self):
         """
@@ -513,7 +536,7 @@ def read_blacklist(fname):
     The format should be one string per line
     """
 
-    blacklist ={}
+    blacklist = {}
     logger.info('loading blacklist: %s' % fname)
     with open(fname) as fobj:
         for line in fobj:
@@ -525,9 +548,7 @@ def read_blacklist(fname):
                 fzname = name + '.fz'
                 blacklist[fzname] = {'name': fzname}
             elif name[-8:] == '.fits.fz':
-                nofzname = name.replace('.fz','')
+                nofzname = name.replace('.fz', '')
                 blacklist[nofzname] = {'name': nofzname}
 
-
     return blacklist
-

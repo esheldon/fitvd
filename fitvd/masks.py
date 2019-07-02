@@ -1,8 +1,44 @@
 from __future__ import print_function
-import numpy as np
+from . import files
 
+def load_mask(tilename=None, fname=None):
+    assert tilename is not None or fname is not None, \
+        'send tilename or fname'
+
+    if fname is None:
+        fname = files.get_mask_file(tilename)
+
+    print('loading mask from:', fname)
+    return Mask(fname=fname)
 
 class Mask(object):
+    def __init__(self, fname):
+        self._fname = fname
+        self._load_mask()
+
+    def _load_mask(self):
+        import healsparse as hs
+        self._smap = hs.HealSparseMap.read(self._fname)
+
+    def is_masked(self, ra, dec):
+        """
+        check if the input positions are masked
+        """
+
+        values = self._smap.getValueRaDec(ra, dec)
+        return values > 0
+
+    def is_unmasked(self, ra, dec):
+        """
+        check if the input positions are masked
+        """
+
+        is_masked = self.is_masked(ra, dec)
+        return ~is_masked
+
+
+'''
+class MaskOld(object):
     def __init__(self, fname, config):
         self.fname = fname
         self._set_config(config)
@@ -117,3 +153,4 @@ def read_mask(fname):
         st['rad_arcsec'][i] = d['rad_arcsec']
 
     return st
+'''
