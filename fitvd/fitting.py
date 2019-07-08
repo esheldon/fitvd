@@ -916,6 +916,7 @@ class AllPSFFluxFitter(object):
         fitter=ngmix.fitting.TemplateFluxFitter(
             obslist,
             do_psf=True,
+            normalize_psf=False,
         )
         fitter.go()
 
