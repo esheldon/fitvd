@@ -203,7 +203,7 @@ class MOFFitter(FitterBase):
         self._set_mof_fitter_class()
         self._set_guess_func()
 
-    def go(self, mbobs_list, ntry=2, get_fitter=False):
+    def go(self, mbobs_list, ntry=2, get_fitter=False, skip_fit=False):
         """
         run the multi object fitter
 
@@ -213,6 +213,10 @@ class MOFFitter(FitterBase):
             One for each object.  If it is a simple
             MultiBandObsList it will be converted
             to a list
+
+        skip_fit: bool
+            If True, only fit the psfs, skipping the main deblending
+            fit
 
         returns
         -------
@@ -237,30 +241,38 @@ class MOFFitter(FitterBase):
                 prior=self.mof_prior,
                 lm_pars=lm_pars,
             )
-            for i in range(ntry):
-                logger.debug('try: %d' % (i+1))
-                guess=self._guess_func(
-                    mbobs_list,
-                    mofc['detband'],
-                    mofc['model'],
-                    self.rng,
-                    prior=self.mof_prior,
-                )
-                #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
-                fitter.go(guess)
-
-                res=fitter.get_result()
-                if res['flags']==0:
-                    break
-
-            res['ntry'] = i+1
-
-            if res['flags'] != 0:
-                res['main_flags'] = procflags.OBJ_FAILURE
-                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            if skip_fit:
+                # we use a and expect the caller to set the flag
+                res={
+                    'ntry':0,
+                    'main_flags':-1,
+                    'main_flagstr': 'none',
+                }
             else:
-                res['main_flags'] = 0
-                res['main_flagstr'] = procflags.get_flagname(0)
+                for i in range(ntry):
+                    logger.debug('try: %d' % (i+1))
+                    guess=self._guess_func(
+                        mbobs_list,
+                        mofc['detband'],
+                        mofc['model'],
+                        self.rng,
+                        prior=self.mof_prior,
+                    )
+                    #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
+                    fitter.go(guess)
+
+                    res=fitter.get_result()
+                    if res['flags']==0:
+                        break
+
+                res['ntry'] = i+1
+
+                if res['flags'] != 0:
+                    res['main_flags'] = procflags.OBJ_FAILURE
+                    res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+                else:
+                    res['main_flags'] = 0
+                    res['main_flagstr'] = procflags.get_flagname(0)
 
         except NoDataError as err:
             epochs_data=None
@@ -533,6 +545,53 @@ class MOFFitter(FitterBase):
 
         return output
 
+class MOFFluxFitter(MOFFitter):
+    """
+    take structural parameters from input model pars, just
+    fit the flux
+    """
+    def _set_guess_func(self):
+        self._guess_func = get_stamp_flux_guesses
+
+    def _set_mof_fitter_class(self):
+        self._mof_fitter_class = mof.MOFFlux
+
+    def _get_dtype(self):
+        # npars = self.npars
+        npars = self.nband
+        nband = self.nband
+
+        n = self.namer
+        dt = [
+            ('id', 'i8'),
+            ('ra', 'f8'),
+            ('dec', 'f8'),
+            ('fof_id', 'i8'), # fof id within image
+            ('flags', 'i4'),
+            ('flagstr', 'S18'),
+            ('masked_frac', 'f4'),
+            ('psf_g', 'f8', 2),
+            ('psf_T', 'f8'),
+            ('psf_flux_flags', 'i4', nband),
+            ('psf_flux', 'f8', nband),
+            ('psf_mag', 'f8', nband),
+            ('psf_flux_err', 'f8', nband),
+            ('psf_flux_s2n', 'f8', nband),
+            (n('flags'), 'i4'),
+            (n('ntry'), 'i2'),
+            (n('nfev'), 'i4'),
+            (n('s2n'), 'f8'),
+            (n('pars'), 'f8', npars),
+            (n('pars_err'), 'f8', npars),
+            (n('pars_cov'), 'f8', (npars, npars)),
+            (n('flux'), 'f8', nband),
+            (n('mag'), 'f8', nband),
+            (n('flux_cov'), 'f8', (nband, nband)),
+            (n('flux_err'), 'f8', nband),
+        ]
+
+        return dt
+
 
 class MOFFitterGS(MOFFitter):
     def make_image(self, iobj, band=0, obsnum=0):
@@ -615,7 +674,7 @@ class MOFFluxFitterGS(MOFFitterGS):
         self._set_mof_fitter_class()
         self._set_guess_func()
 
-    def go(self, mbobs_list, ntry=2, get_fitter=False):
+    def go(self, mbobs_list, ntry=2, get_fitter=False, skip_fit=False):
         """
         run the multi object fitter
 
@@ -625,6 +684,9 @@ class MOFFluxFitterGS(MOFFitterGS):
             One for each object.  If it is a simple
             MultiBandObsList it will be converted
             to a list
+        skip_fit: bool
+            If True, only fit the psfs, skipping the main deblending
+            fit
 
         returns
         -------
@@ -645,25 +707,34 @@ class MOFFluxFitterGS(MOFFitterGS):
                 mbobs_list,
                 mofc['model'],
             )
-            for i in range(ntry):
-                guess=self._guess_func(
-                    mbobs_list,
-                    self.rng,
-                )
-                fitter.go(guess)
-
-                res=fitter.get_result()
-                if res['flags']==0:
-                    break
-
-            res['ntry'] = i+1
-
-            if res['flags'] != 0:
-                res['main_flags'] = procflags.OBJ_FAILURE
-                res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            if skip_fit:
+                # we use a and expect the caller to set the flag
+                res={
+                    'ntry':0,
+                    'main_flags':-1,
+                    'main_flagstr': 'none',
+                }
             else:
-                res['main_flags'] = 0
-                res['main_flagstr'] = procflags.get_flagname(0)
+
+                for i in range(ntry):
+                    guess=self._guess_func(
+                        mbobs_list,
+                        self.rng,
+                    )
+                    fitter.go(guess)
+
+                    res=fitter.get_result()
+                    if res['flags']==0:
+                        break
+
+                res['ntry'] = i+1
+
+                if res['flags'] != 0:
+                    res['main_flags'] = procflags.OBJ_FAILURE
+                    res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+                else:
+                    res['main_flags'] = 0
+                    res['main_flagstr'] = procflags.get_flagname(0)
 
 
         except NoDataError as err:
@@ -845,6 +916,8 @@ class AllPSFFluxFitter(object):
         fitter=ngmix.fitting.TemplateFluxFitter(
             obslist,
             do_psf=True,
+            normalize_psf=True,
+            cen=(0, 0),
         )
         fitter.go()
 
@@ -967,6 +1040,47 @@ def get_stamp_guesses(list_of_obs,
         logger.debug('guess[%d]: %s' % (i,format_pars(guess[beg:beg+flux_start+band+1])))
     return guess
 
+
+def get_stamp_flux_guesses(list_of_obs, detband, model, rng, prior=None):
+    """
+    get a guess based on metadata in the obs
+
+    T guess is gotten from detband
+
+    these are not used
+    detband, model, prior
+
+    """
+
+    nband = len(list_of_obs[0])
+    npars_per = nband
+
+    nobj = len(list_of_obs)
+
+    npars_tot = nobj*npars_per
+    guess = np.zeros(npars_tot)
+
+    for i, mbo in enumerate(list_of_obs):
+
+        beg = i*npars_per
+
+        for band, obslist in enumerate(mbo):
+            obslist = mbo[band]
+            scale = obslist[0].jacobian.scale
+            band_meta = obslist.meta
+
+            flux = band_meta['psf_flux']
+
+            if flux < 0.01:
+                flux = 0.01
+
+            flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
+
+            guess[beg+band] = flux_guess
+
+    return guess
+
+
 def get_stamp_guesses_gs(list_of_obs,
                          detband,
                          model,
@@ -1049,6 +1163,7 @@ def get_stamp_guesses_gs(list_of_obs,
 
     return guess
 
+
 def get_stamp_flux_guesses_gs(list_of_obs, rng):
     """
     get a guess based on metadata in the obs
@@ -1086,5 +1201,3 @@ def get_stamp_flux_guesses_gs(list_of_obs, rng):
             guess[beg+band] = flux_guess
 
     return guess
-
-

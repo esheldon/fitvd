@@ -172,7 +172,8 @@ class FoFBatchBase(dict):
 
         fof_band = self.run_conf['fof_band']
 
-        if 'mask' in self.fit_conf:
+        #if 'mask' in self.fit_conf:
+        if self.fit_conf.get('use_mask', False):
             mask_file = files.get_mask_file(tilename)
             mask_text = '--mask=%s' % mask_file
         else:
@@ -350,8 +351,12 @@ class ShellBatch(dict):
         else:
             d['fofs_text'] = ''
 
-        if self.args.model_pars is not None:
-            d['model_pars'] = '--model-pars=%s' % self.args.model_pars
+        if 'model_pars_run' in self:
+            pars_file = files.get_collated_file(
+                self['model_pars_run'],
+                tilename,
+            )
+            d['model_pars'] = '--model-pars=%s' % pars_file
         else:
             d['model_pars'] = ''
 
@@ -397,7 +402,7 @@ class ShellBatch(dict):
             m = meds.MEDS(meds_file)
             cat = m.get_cat()
             fofst = fofs.make_singleton_fofs(cat)
-            
+
         return fofst
 
 
@@ -814,6 +819,7 @@ def _get_meds_file_info(run_conf, tile_conf):
 
     des_bands = run_conf.get('des_bands',[])
     video_bands = run_conf.get('video_bands',[])
+    uvista_bands = run_conf.get('uvista_bands',[])
 
     for tilename_full in tile_conf['tilenames']:
         if 'DES' in tilename_full:
@@ -838,6 +844,15 @@ def _get_meds_file_info(run_conf, tile_conf):
                 band=band,
             )
             meds_list.append(fname)
+
+        for band in uvista_bands:
+            fname = tile_conf['uvista_pattern'] % dict(
+                tilename=tilename,
+                tilename_full=tilename_full,
+                band=band,
+            )
+            meds_list.append(fname)
+
 
         #fi[tilename] = meds_list
         fi[tilename_full] = meds_list

@@ -38,8 +38,9 @@ def main():
     cat = m.get_cat()
 
     if args.mask is not None:
-        mask_config = conf.get('mask_config',None)
-        mask = fitvd.masks.Mask(args.mask, mask_config)
+        #mask_config = conf.get('mask_config',None)
+        #mask = fitvd.masks.Mask(args.mask, mask_config)
+        mask = fitvd.masks.Mask(args.mask)
     else:
         mask=None
 

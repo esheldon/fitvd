@@ -186,20 +186,19 @@ def check_blacklist(mbobs, blacklist):
     new_mbobs = ngmix.MultiBandObsList()
     new_mbobs.meta.update(mbobs.meta)
 
-    for obslist in mbobs:
-        for band, obslist in enumerate(mbobs):
+    for band, obslist in enumerate(mbobs):
 
-            new_obslist = ngmix.ObsList()
-            new_obslist.meta.update(obslist.meta)
+        new_obslist = ngmix.ObsList()
+        new_obslist.meta.update(obslist.meta)
 
-            for epoch, obs in enumerate(obslist):
-                file_path = obs.meta['file_path']
+        for epoch, obs in enumerate(obslist):
+            file_path = obs.meta['file_path']
 
-                if file_path in blacklist:
-                    logger.debug('removing blacklisted obs from "%s"' %
-                                 file_path)
-                else:
-                    new_obslist.append(obs)
+            if file_path in blacklist:
+                logger.debug('removing blacklisted obs from "%s"' %
+                             file_path)
+            else:
+                new_obslist.append(obs)
 
         if len(new_obslist) == 0:
             logger.debug('all epochs from band %s are blacklisted' % band)
