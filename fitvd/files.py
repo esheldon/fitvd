@@ -445,6 +445,14 @@ class MEDSPSFEx(ngmix.medsreaders.NGMixMEDS):
         col = self['orig_col'][iobj, icutout]
         return self.psfex.get_rec(row, col)
 
+    def _get_psf_cen(self, iobj, icutout):
+        """
+        get the center row,col of the psf
+        """
+        row = self['orig_row'][iobj, icutout]
+        col = self['orig_col'][iobj, icutout]
+        return self.psfex.get_center(row, col)
+
     def _load_psfex(self, meds_filename, psfex_name=None):
         """
         load the psfex object from the file
