@@ -56,22 +56,6 @@ def _extract_mask_tilefront(tilename_full):
     return tilename.split('_')[0]
 
 
-'''
-def get_mask_dir(tilename_full):
-    """
-    files are in mask_basedir/tilename/tilename.satstars.dat
-    where tilename has reqnum/attnum removed
-    """
-    tilefront = _extract_mask_tilefront(tilename_full)
-
-    bdir = get_mask_basedir()
-    return os.path.join(
-        bdir,
-        tilefront,
-    )
-'''
-
-
 def get_mask_dir():
     """
     get the collated file name
@@ -86,8 +70,7 @@ def get_mask_dir():
 
 def get_mask_file(tilename_full):
     """
-    get the mask file name.  Currently this is just the stars file but we will
-    eventually expand to a full mangle mask with other types of things in it
+    get the mask file name.
 
     Parameters
     ----------
@@ -100,12 +83,25 @@ def get_mask_file(tilename_full):
     # without reqnum etc.
     mask_tilename = _extract_mask_tilename(tilename_full)
 
-    return os.path.join(
-        d,
-        '%s-griz-healsparse.fits' % mask_tilename,
-        # '%s.satstars.dat' % mask_tilename,
-        # '%s-mask.hsp' % mask_tilename,
-    )
+    return os.path.join(d, '%s-griz-healsparse.fits' % mask_tilename)
+
+
+def get_bounds_file(tilename_full):
+    """
+    get the healsparse bounds map file name.
+
+    Parameters
+    ----------
+    tilename: string
+        Either the basic tilename such as SN-C3_C10
+        or with reqnum/attnum SN-C3_C10_r3688p01
+    """
+    d = get_mask_dir()
+
+    # without reqnum etc.
+    mask_tilename = _extract_mask_tilename(tilename_full)
+
+    return os.path.join(d, '%s-griz-bounds-healsparse.fits' % mask_tilename)
 
 
 #

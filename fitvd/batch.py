@@ -172,17 +172,16 @@ class FoFBatchBase(dict):
 
         fof_band = self.run_conf['fof_band']
 
-        #if 'mask' in self.fit_conf:
         if self.fit_conf.get('use_mask', False):
             mask_file = files.get_mask_file(tilename)
-            mask_text = '--mask=%s' % mask_file
+            bounds_file = files.get_bounds_file(tilename)
+            mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)
         else:
             mask_text=''
 
         text=_fof_script_template % {
             'fof_file':fof_file,
             'plot_file':plot_file,
-            #'fit_config':os.path.abspath(self.args.fit_config),
             'fit_config':self['fit_config'],
             'meds_file':meds_files[fof_band],
             'mask_text': mask_text,

@@ -7,52 +7,54 @@ from __future__ import print_function
 import os
 import argparse
 import fitvd
-import meds
-import yaml
 import fitsio
-import numpy as np
 import esutil as eu
 import ngmix.medsreaders
 
-parser=argparse.ArgumentParser()
-parser.add_argument('--conf',required=True)
-parser.add_argument('--plot',required=True)
-parser.add_argument('--output',required=True)
+parser = argparse.ArgumentParser()
+parser.add_argument('--conf', required=True)
+parser.add_argument('--plot', required=True)
+parser.add_argument('--output', required=True)
 parser.add_argument('meds')
 
-parser.add_argument('--plot-only',action='store_true')
+parser.add_argument('--plot-only', action='store_true')
 parser.add_argument('--mask', help='use the mask specified in the file')
+parser.add_argument('--bounds', help='use the bounds specified in the file')
+
 
 def main():
-    args=parser.parse_args()
+    args = parser.parse_args()
     assert 'meds' not in args.output
 
     conf = fitvd.files.read_yaml(args.conf)
     fof_conf = conf['fofs']
 
-    print('loading:',args.meds)
+    print('loading:', args.meds)
 
-    #m = fitvd.files.MEDSPSFEx(args.meds)
     m = ngmix.medsreaders.NGMixMEDS(args.meds)
 
     cat = m.get_cat()
 
-    if args.mask is not None:
-        #mask_config = conf.get('mask_config',None)
-        #mask = fitvd.masks.Mask(args.mask, mask_config)
-        mask = fitvd.masks.Mask(args.mask)
+    if args.mask is not None or args.bounds is not None:
+        assert args.bounds is not None and args.mask is not None, \
+            'send both mask and bounds'
+
+        mask = fitvd.masks.Mask(
+            mask_fname=args.mask,
+            bounds_fname=args.bounds,
+        )
     else:
-        mask=None
+        mask = None
 
     if args.plot_only:
-        fofs=fitsio.read(args.output, ext='fofs')
+        fofs = fitsio.read(args.output, ext='fofs')
     else:
         # convert to arcsec
         radcol = fof_conf['radius_column']
         if 'arcsec' not in radcol:
             print('converting radius to arcsec')
-            j = m.get_ngmix_jacobian(0,0)
-            #tobs = m.get_obs(0,0)
+            j = m.get_ngmix_jacobian(0, 0)
+
             scale = j.scale
             rad = cat[radcol]*scale
             cat[radcol] = rad
@@ -65,10 +67,10 @@ def main():
         )
 
         eu.ostools.makedirs_fromfile(args.output)
-        print('writing:',args.output)
-        with fitsio.FITS(args.output,'rw',clobber=True) as fits:
-            fits.write(fofs,extname='fofs')
-            fits.write(nbr_data,extname='nbrs')
+        print('writing:', args.output)
+        with fitsio.FITS(args.output, 'rw', clobber=True) as fits:
+            fits.write(fofs, extname='fofs')
+            fits.write(nbr_data, extname='nbrs')
 
     seed = fitvd.util.convert_string_to_seed(os.path.basename(args.meds))
     fitvd.fofs.plot_fofs(
@@ -82,6 +84,6 @@ def main():
         seed=seed,
     )
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     main()
- 
