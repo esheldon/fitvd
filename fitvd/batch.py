@@ -16,6 +16,7 @@ import yaml
 import logging
 import fitsio
 import meds
+import desmasks
 from . import split
 from . import files
 from . import fofs
@@ -173,8 +174,8 @@ class FoFBatchBase(dict):
         fof_band = self.run_conf['fof_band']
 
         if self.fit_conf.get('use_mask', False):
-            mask_file = files.get_mask_file(tilename)
-            bounds_file = files.get_bounds_file(tilename)
+            mask_file = desmasks.files.get_mask_file(tilename)
+            bounds_file = desmasks.files.get_bounds_file(tilename)
             mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)
         else:
             mask_text=''
