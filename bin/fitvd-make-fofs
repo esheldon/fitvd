@@ -7,6 +7,7 @@ from __future__ import print_function
 import os
 import argparse
 import fitvd
+import desmasks
 import fitsio
 import esutil as eu
 import ngmix.medsreaders
@@ -39,7 +40,7 @@ def main():
         assert args.bounds is not None and args.mask is not None, \
             'send both mask and bounds'
 
-        mask = fitvd.masks.Mask(
+        mask = desmasks.TileMask(
             mask_fname=args.mask,
             bounds_fname=args.bounds,
         )

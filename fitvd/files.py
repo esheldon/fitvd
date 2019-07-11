@@ -48,14 +48,6 @@ def _extract_mask_tilename(tilename_full):
     return tilename
 
 
-def _extract_mask_tilefront(tilename_full):
-    """
-    get the front part, e.g. SN-C3
-    """
-    tilename = _extract_mask_tilename(tilename_full)
-    return tilename.split('_')[0]
-
-
 def get_mask_dir():
     """
     get the collated file name
