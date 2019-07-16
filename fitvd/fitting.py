@@ -207,6 +207,10 @@ class MOFFitter(FitterBase):
 
         self.guesses = kw.pop('guesses', None)
         self.method = kw.pop('method', 'lm')
+        if self.method == 'samples':
+            if self.guesses is None:
+                raise ValueError('send guesses for samples method')
+            self.nsamples = kw.pop('nsamples')
 
         super(MOFFitter,self).__init__(*args, **kw)
 
@@ -238,7 +242,7 @@ class MOFFitter(FitterBase):
             mbobs_list=[mbobs_list]
 
         mofc = self['mof']
-        lm_pars = mofc.get('lm_pars',None)
+        lm_pars = mofc.get('lm_pars', None)
 
         dofit = True
         try:
@@ -276,13 +280,24 @@ class MOFFitter(FitterBase):
                 else:
                     for i in range(ntry):
                         logger.debug('try: %d' % (i+1))
-                        guess=self._guess_func(
-                            mbobs_list,
-                            mofc['detband'],
-                            mofc['model'],
-                            self.rng,
-                            prior=self.mof_prior,
-                        )
+
+                        if self.method == 'samples':
+                            guess = self._guess_func(
+                                self.nsamples,
+                                mbobs_list,
+                                mofc['detband'],
+                                mofc['model'],
+                                self.rng,
+                                prior=self.mof_prior,
+                            )
+                        else:
+                            guess = self._guess_func(
+                                mbobs_list,
+                                mofc['detband'],
+                                mofc['model'],
+                                self.rng,
+                                prior=self.mof_prior,
+                            )
                         #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
                         fitter.go(guess)
 
@@ -345,8 +360,12 @@ class MOFFitter(FitterBase):
 
     def _set_guess_func(self):
         if self.guesses is not None:
-            logger.info('using input guesses')
-            self._guess_func = ParsGuesser(self.guesses, get_stamp_guesses)
+            if self.method == 'samples':
+                logger.info('sampling input pars')
+                self._guess_func = ParsSampler(self.guesses, get_stamp_guesses)
+            else:
+                logger.info('using input guesses')
+                self._guess_func = ParsGuesser(self.guesses, get_stamp_guesses)
         else:
             self._guess_func = get_stamp_guesses
 
@@ -503,7 +522,8 @@ class MOFFitter(FitterBase):
             output[n('flags')] = main_res['flags']
 
         output[n('ntry')] = main_res['ntry']
-        logger.info('ntry: %d' % main_res['ntry'])
+        logger.info('ntry: %s nfev: %s' %
+                    (main_res['ntry'], main_res.get('nfev',None)))
 
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
@@ -1330,6 +1350,111 @@ class ParsGuesser(object):
             guesses[start:end] = guess
 
         return guesses
+
+
+class ParsSampler(object):
+    def __init__(self, model_pars, fallback_func):
+        self.model_pars = model_pars
+        self.ids = self.model_pars['id']
+        self.fallback_func = fallback_func
+
+    def __call__(self, num, mbobs_list, detband, model, rng, prior=None):
+
+        assert prior is not None, 'send a prior'
+
+        nband=len(mbobs_list[0])
+        pname = '%s_pars' % model
+        ename = '%s_pars_err' % model
+
+        pars = self.model_pars[pname]
+        perr = self.model_pars[ename]
+
+        if model=='bdf':
+            npars_per=6+nband
+        else:
+            npars_per=5+nband
+
+        if pars.shape[1] != npars_per:
+            raise ValueError('guesses have npars %d, '
+                             'but need %d' % (pars.shape[1], npars_per))
+        nobj=len(mbobs_list)
+
+        npars_tot = nobj*npars_per
+        samples = np.zeros((num, npars_tot))
+
+        for isamp in range(num):
+            for i, mbo in enumerate(mbobs_list):
+                tid = mbo[0][0].meta['id']
+
+                w, = np.where(self.ids == tid)
+                if w.size == 0:
+                    raise RuntimeError('none matched id %d' % tid)
+
+                ind = w[0]
+                flags = self.model_pars['flags'][ind]
+
+                if flags != 0:
+                    logger.info('using fallback guesser')
+                    sample = self.fallback_func(
+                        [mbo],
+                        detband,
+                        model,
+                        rng,
+                        prior=prior,
+                    )
+
+                else:
+
+                    sample = pars[ind, :].copy()
+                    samperr = perr[ind, :].copy()
+
+                    # first one is always input pars
+                    if isamp != 0:
+
+                        sample[0] += rng.normal(scale=samperr[0])
+                        sample[1] += rng.normal(scale=samperr[1])
+
+                        """
+                        off1, off2 = prior.cen_prior.sample()
+                        sample[0] = off1*0.1
+                        sample[1] = off2*0.1
+                        """
+
+                        sample[2], sample[3] = get_shape_guess(sample[2], sample[3], 0.02, rng)
+                        sample[4] += rng.normal(scale=samperr[4])
+
+                        # sample[4] = sample[4]*(1.0 + rng.uniform(low=-0.01, high=0.01))
+
+                        if model == 'bdf':
+                            flux_start = 6
+                            fracdev = sample[5]
+                            while True:
+                                new_fracdev = fracdev + rng.uniform(low=-0.02, high=0.02)
+                                if 0 < new_fracdev < 1:
+                                    break
+
+                            sample[5] = new_fracdev
+
+                        else:
+                            flux_start = 5
+
+                        fluxes = sample[flux_start:]
+                        nflux = fluxes.size
+
+                        for iflux in range(nflux):
+                            ip = flux_start + iflux
+                            sample[ip] += rng.normal(scale=samperr[ip])
+                        """
+                        r = rng.uniform(low=-0.01, high=0.01, size=nflux)
+                        sample[flux_start:] = fluxes*(1.0 + r)
+                        """
+
+                start = i*npars_per
+                end = (i+1)*npars_per
+                samples[isamp, start:end] = sample
+
+        return samples
+
 
 def get_shape_guess(g1, g2, width, rng, gmax=0.9):
     """
