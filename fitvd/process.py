@@ -953,10 +953,6 @@ class Processor(object):
             if c['mof']['use_input_guesses']:
                 kw['guesses'] = self.model_pars
 
-        kw['method'] = c['mof'].get('method', 'lm')
-        if kw['method'] == 'samples':
-            kw['nsamples'] = c['mof']['nsamples']
-
         if parspace=='ngmix':
             self.fitter = fitting.MOFFitter(
                 self.config,
