@@ -1,3 +1,11 @@
+"""
+todo
+
+    - when guessing from input, and fof group size 1, and no flags set,
+      just copy those pars
+    - support bd
+
+"""
 from __future__ import print_function
 
 import logging
@@ -197,6 +205,8 @@ class MOFFitter(FitterBase):
     """
     def __init__(self, *args, **kw):
 
+        self.guesses = kw.pop('guesses', None)
+
         super(MOFFitter,self).__init__(*args, **kw)
 
         self.mof_prior = self._get_prior(self['mof'])
@@ -227,52 +237,67 @@ class MOFFitter(FitterBase):
             mbobs_list=[mbobs_list]
 
         mofc = self['mof']
-        lm_pars = mofc.get('lm_pars',None)
+        lm_pars = mofc.get('lm_pars', None)
 
+        dofit = True
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
 
-            fitter = self._mof_fitter_class(
-                mbobs_list,
-                mofc['model'],
-                prior=self.mof_prior,
-                lm_pars=lm_pars,
-            )
-            if skip_fit:
-                # we use a and expect the caller to set the flag
-                res={
-                    'ntry':0,
-                    'main_flags':-1,
-                    'main_flagstr': 'none',
-                }
-            else:
-                for i in range(ntry):
-                    logger.debug('try: %d' % (i+1))
-                    guess=self._guess_func(
-                        mbobs_list,
-                        mofc['detband'],
-                        mofc['model'],
-                        self.rng,
-                        prior=self.mof_prior,
-                    )
-                    #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
-                    fitter.go(guess)
+            if self.guesses is not None and len(mbobs_list)==1:
+                tid = mbobs_list[0][0][0].meta['id']
+                w, = np.where(self.guesses['id'] == tid)
+                assert w.size == 1
+                index = w[0]
+                flags = self.guesses['flags'][index]
+                if flags == 0:
+                    dofit = False
+                    logger.info('skipping fit, using input')
+                    data = self.guesses[index:index+1]
 
-                    res=fitter.get_result()
-                    if res['flags']==0:
-                        break
-
-                res['ntry'] = i+1
-
-                if res['flags'] != 0:
-                    res['main_flags'] = procflags.OBJ_FAILURE
-                    res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+            if dofit:
+                fitter = self._mof_fitter_class(
+                    mbobs_list,
+                    mofc['model'],
+                    prior=self.mof_prior,
+                    lm_pars=lm_pars,
+                )
+                if skip_fit:
+                    # we use a and expect the caller to set the flag
+                    res={
+                        'ntry':0,
+                        'main_flags':-1,
+                        'main_flagstr': 'none',
+                    }
                 else:
-                    res['main_flags'] = 0
-                    res['main_flagstr'] = procflags.get_flagname(0)
+                    for i in range(ntry):
+                        logger.debug('try: %d' % (i+1))
+
+                        guess = self._guess_func(
+                            mbobs_list,
+                            mofc['detband'],
+                            mofc['model'],
+                            self.rng,
+                            prior=self.mof_prior,
+                        )
+
+                        #logger.debug('guess: %s' % ' '.join(['%g' % e for e in guess]))
+                        fitter.go(guess)
+
+                        res=fitter.get_result()
+                        if res['flags']==0:
+                            break
+
+                    res['ntry'] = i+1
+
+                    if res['flags'] != 0:
+                        res['main_flags'] = procflags.OBJ_FAILURE
+                        res['main_flagstr'] = procflags.get_flagname(res['main_flags'])
+                    else:
+                        res['main_flags'] = 0
+                        res['main_flagstr'] = procflags.get_flagname(0)
 
         except NoDataError as err:
             epochs_data=None
@@ -293,20 +318,19 @@ class MOFFitter(FitterBase):
                 'main_flagstr':procflags.get_flagname(procflags.PSF_FAILURE),
             }
 
-        nobj = len(mbobs_list)
+        if dofit:
+            if res['main_flags'] != 0:
+                reslist=None
+            else:
+                reslist=fitter.get_result_list()
 
-        if res['main_flags'] != 0:
-            reslist=None
-        else:
-            reslist=fitter.get_result_list()
+            data=self._get_output(
+                mbobs_list,
+                res,
+                reslist,
+            )
 
-        data=self._get_output(
-            mbobs_list,
-            res,
-            reslist,
-        )
-
-        self._mof_fitter=fitter
+            self._mof_fitter=fitter
 
         return data, epochs_data
 
@@ -320,7 +344,11 @@ class MOFFitter(FitterBase):
         self._mof_fitter_class=mof.MOFStamps
 
     def _set_guess_func(self):
-        self._guess_func=get_stamp_guesses
+        if self.guesses is not None:
+            logger.info('using input guesses')
+            self._guess_func = ParsGuesser(self.guesses, get_stamp_guesses)
+        else:
+            self._guess_func = get_stamp_guesses
 
     def _setup(self):
         """
@@ -475,7 +503,8 @@ class MOFFitter(FitterBase):
             output[n('flags')] = main_res['flags']
 
         output[n('ntry')] = main_res['ntry']
-        logger.info('ntry: %d' % main_res['ntry'])
+        logger.info('ntry: %s nfev: %s' %
+                    (main_res['ntry'], main_res.get('nfev',None)))
 
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
@@ -1201,3 +1230,130 @@ def get_stamp_flux_guesses_gs(list_of_obs, rng):
             guess[beg+band] = flux_guess
 
     return guess
+
+
+class ParsGuesser(object):
+    def __init__(self, model_pars, fallback_func):
+        self.model_pars = model_pars
+        self.ids = self.model_pars['id']
+        self.fallback_func = fallback_func
+
+    def __call__(self, mbobs_list, detband, model, rng, prior=None):
+
+        assert prior is not None, 'send a prior'
+
+        nband=len(mbobs_list[0])
+        pname = '%s_pars' % model
+
+        pars = self.model_pars[pname]
+
+        if model=='bdf':
+            npars_per=6+nband
+        else:
+            npars_per=5+nband
+
+        if pars.shape[1] != npars_per:
+            raise ValueError('guesses have npars %d, '
+                             'but need %d' % (pars.shape[1], npars_per))
+        nobj=len(mbobs_list)
+
+        npars_tot = nobj*npars_per
+        guesses = np.zeros(npars_tot)
+
+        for i, mbo in enumerate(mbobs_list):
+            tid = mbo[0][0].meta['id']
+
+            w, = np.where(self.ids == tid)
+            if w.size == 0:
+                raise RuntimeError('none matched id %d' % tid)
+
+            ind = w[0]
+            flags = self.model_pars['flags'][ind]
+
+            if flags != 0:
+                logger.info('using fallback guesser')
+                guess = self.fallback_func(
+                    [mbo],
+                    detband,
+                    model,
+                    rng,
+                    prior=prior,
+                )
+
+            else:
+                guess = pars[ind, :].copy()
+                # ngmix.print_pars(guess, front='guess start: ')
+
+                off1, off2 = prior.cen_prior.sample()
+                # guess[0] += off1
+                # guess[1] += off2
+                guess[0] = off1
+                guess[1] = off2
+
+                # guess[2], guess[3] = get_shape_guess(guess[2], guess[3], 0.02, rng)
+                guess[2] = rng.uniform(low=-0.05, high=0.05)
+                guess[3] = rng.uniform(low=-0.05, high=0.05)
+
+                guess[4] = guess[4]*(1.0 + rng.uniform(low=-0.05, high=0.05))
+                if model == 'bdf':
+                    flux_start = 6
+                    # fracdev = guess[5]
+                    # while True:
+                    #     new_fracdev = fracdev + rng.uniform(low=-0.02, high=0.02)
+                    #     if 0 < new_fracdev < 1:
+                    #         break
+                    if hasattr(prior.fracdev_prior,'sigma'):
+                        # guessing close to mean seems to be important for the pathological
+                        # cases of an undetected object close to another
+                        low  = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
+                        high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
+                        while True:
+                            new_fracdev = rng.uniform(low=low, high=high)
+                            if 0 < new_fracdev < 1:
+                                break
+                    else:
+                        new_fracdev = prior.fracdev_prior.sample()
+
+                    guess[5] = new_fracdev
+
+                else:
+                    flux_start = 5
+
+                fluxes = guess[flux_start:]
+                nflux = fluxes.size
+                r = rng.uniform(low=-0.05, high=0.05, size=nflux)
+                guess[flux_start:] = fluxes*(1.0 + r)
+
+                # ngmix.print_pars(guess, front='guess end: ')
+
+            start = i*npars_per
+            end = (i+1)*npars_per
+            guesses[start:end] = guess
+
+        return guesses
+
+
+def get_shape_guess(g1, g2, width, rng, gmax=0.9):
+    """
+    Get guess, making sure in range
+    """
+
+    g = np.sqrt(g1**2 + g2**2)
+    if g > gmax:
+        fac = gmax/g
+
+        g1 = g1 * fac
+        g2 = g2 * fac
+
+    shape=ngmix.Shape(g1, g2)
+
+    while True:
+        try:
+            g1_offset = rng.uniform(low=width, high=width)
+            g2_offset = rng.uniform(low=width, high=width)
+            shape_new = shape.get_sheared(g1_offset, g2_offset)
+            break
+        except GMixRangeError:
+            pass
+
+    return shape_new.g1, shape_new.g2

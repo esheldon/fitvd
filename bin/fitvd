@@ -26,9 +26,12 @@ parser.add_argument('--end',
                     help='last FoF group to process, inclusive')
 
 parser.add_argument('--model-pars',
-                    help='input model pars when doing flux only fitting')
+                    help=('input model pars when doing flux '
+                          'only fitting or using for guesses'))
+
 parser.add_argument('--offsets',
                     help='input model pars when doing flux only fitting')
+
 parser.add_argument('meds', nargs='+')
 
 parser.add_argument('--mask',

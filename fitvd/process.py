@@ -928,9 +928,13 @@ class Processor(object):
         """
         currently only MOF
         """
+
+        c = self.config
+        c['mof']['use_input_guesses'] = c['mof'].get('use_input_guesses', False)
         parspace = self.config['parspace']
 
-        if 'flux' in parspace:
+        kw = {}
+        if 'flux' in parspace or c['mof']['use_input_guesses']:
             assert self.args.model_pars is not None, \
                 'for flux fitting send model pars'
 
@@ -946,23 +950,29 @@ class Processor(object):
 
             self.model_pars = model_pars[mm]
 
+            if c['mof']['use_input_guesses']:
+                kw['guesses'] = self.model_pars
+
         if parspace=='ngmix':
             self.fitter = fitting.MOFFitter(
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
+                **kw
             )
         elif parspace=='galsim':
             self.fitter = fitting.MOFFitterGS(
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
+                **kw
             )
         elif parspace == 'ngmix-flux':
             self.fitter = fitting.MOFFluxFitter(
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
+                **kw
             )
 
         elif parspace=='galsim-flux':
@@ -970,6 +980,7 @@ class Processor(object):
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
+                **kw
             )
 
         else:
