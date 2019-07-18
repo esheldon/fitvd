@@ -100,7 +100,8 @@ class Processor(object):
         else:
             skip_fit = False
 
-        indices=self.fofs['number'][w]-1
+        # assumes meds is number sorted
+        indices = self.fofs['number'][w]-1
 
         logger.debug('loading data')
         mbobs_list, flags = self._get_fof_mbobs_list(indices)
@@ -126,7 +127,7 @@ class Processor(object):
 
         logger.info('fit result: %s' % get_flagname(output['flags'][0]) )
 
-        self._add_extra_outputs(indices, output, fofid)
+        self._add_extra_outputs(indices, output, fofid, self.fofs[w])
 
         tp = time.time()-tp
         fof_data['fof_id'] = fofid
@@ -153,13 +154,14 @@ class Processor(object):
         epochs_data = self.fitter._get_epochs_struct()
         return output, epochs_data
 
-    def _add_extra_outputs(self, indices, output, fofid):
+    def _add_extra_outputs(self, indices, output, fofid, fofs):
 
         m = self.mb_meds.mlist[0]
         output['id'] = m['id'][indices]
         output['ra'] = m['ra'][indices]
         output['dec'] = m['dec'][indices]
         output['fof_id'] = fofid
+        output['mask_flags'] = fofs['mask_flags']
 
     def _get_fof_mbobs_list(self, indices):
         """
