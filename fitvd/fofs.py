@@ -7,10 +7,10 @@ from __future__ import print_function
 import os
 import copy
 import numpy as np
-import mof
 import esutil as eu
 
 from .pbar import prange
+
 
 def get_fofs(cat, fof_conf, mask=None):
     """
@@ -33,7 +33,7 @@ def get_fofs(cat, fof_conf, mask=None):
     else:
         is_masked = None
 
-    mn=MEDSNbrs(
+    mn = MEDSNbrs(
         cat,
         fof_conf,
         is_masked=is_masked,
@@ -44,7 +44,19 @@ def get_fofs(cat, fof_conf, mask=None):
     nf = NbrsFoF(nbr_data)
     fofs = nf.get_fofs()
 
+    add_dt = [('mask_flags', 'i4')]
+    fofs = eu.numpy_util.add_fields(fofs, add_dt)
+
+    if mask is not None:
+        mcat, mfofs = eu.numpy_util.match(cat['number'], fofs['number'])
+        assert mcat.size == cat.size
+        fofs['mask_flags'][mfofs] = mask.get_mask_flags(
+            cat['ra'][mcat],
+            cat['dec'][mcat],
+        )
+
     return nbr_data, fofs
+
 
 def make_singleton_fofs(cat):
     """
@@ -60,11 +72,12 @@ def make_singleton_fofs(cat):
     Fof group array with fields, entries 'fofid', 'number'
 
     """
-    dt = [('fofid','i8'),('number','i8')]
+    dt = [('fofid', 'i8'), ('number', 'i8')]
     fofs = np.zeros(cat.size, dtype=dt)
     fofs['fofid'] = np.arange(fofs.size)
     fofs['number'] = cat['number']
     return fofs
+
 
 class MEDSNbrs(object):
     """
