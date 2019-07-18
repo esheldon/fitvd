@@ -154,14 +154,15 @@ class Processor(object):
         epochs_data = self.fitter._get_epochs_struct()
         return output, epochs_data
 
-    def _add_extra_outputs(self, indices, output, fofid, fofs):
+    def _add_extra_outputs(self, indices, output, fofid, fofs)
 
         m = self.mb_meds.mlist[0]
         output['id'] = m['id'][indices]
         output['ra'] = m['ra'][indices]
         output['dec'] = m['dec'][indices]
         output['fof_id'] = fofid
-        output['mask_flags'] = fofs['mask_flags']
+        output['fof_size'] = output.size
+        output['mask_flags'] = fofs['mask_flags'][w]
 
     def _get_fof_mbobs_list(self, indices):
         """
