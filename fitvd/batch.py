@@ -176,13 +176,13 @@ class FoFBatchBase(dict):
         if self.fit_conf.get('use_mask', False):
             uvista_bands = self.run_conf.get('uvista_bands',[])
             if len(uvista_bands) != 0:
-                with_ultravista = True
+                with_uvista = True
             else:
-                with_ultravista = False
+                with_uvista = False
 
             mask_file = desmasks.files.get_mask_file(
                 tilename,
-                with_ultravista=with_ultravista,
+                with_uvista=with_uvista,
             )
             bounds_file = desmasks.files.get_bounds_file(tilename)
             mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)

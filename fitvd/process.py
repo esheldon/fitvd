@@ -361,7 +361,6 @@ class Processor(object):
             name = '%s_pars' % mname
             mbobs.meta['input_model_pars'] = self.model_pars[name][index].copy()
             mbobs.meta['input_flags'] = self.model_pars['flags'][index].copy()
-            #logger.debug('added input pars: %s' % str(mbobs.meta['input_model_pars']))
 
         for band,obslist in enumerate(mbobs):
             m=self.mb_meds.mlist[band]
