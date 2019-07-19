@@ -337,12 +337,12 @@ class Processor(object):
         else:
             mbobs, flags = self._cut_high_maskfrac(mbobs)
 
+        if flags != 0:
+            return None, flags
+
         # before setting weight, because circular masking can blank
         # out lots of the stamp but its ok
         mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
-
-        if flags != 0:
-            return None, flags
 
         if 'inject' in self.config and self.config['inject']['do_inject']:
             self._inject_fake_objects(mbobs)
