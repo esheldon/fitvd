@@ -138,7 +138,7 @@ def zero_bitmask_in_weight(mbobs, flags2zero):
     return new_mbobs, 0
 
 
-def get_masked_frac_sums(obs):
+def get_badpix_frac_sums(obs):
     weight = obs.weight
     wmasked = np.where(weight <= 0.0)
     nmasked = wmasked[0].size
@@ -147,18 +147,18 @@ def get_masked_frac_sums(obs):
     return npix, nmasked
 
 
-def get_masked_frac(mbobs):
+def get_badpix_frac(mbobs):
     nmasked = 0.0
     npix = 0
 
     for obslist in mbobs:
         for obs in obslist:
-            tnpix, tnmasked = get_masked_frac_sums(obs)
+            tnpix, tnmasked = get_badpix_frac_sums(obs)
             nmasked += tnmasked
             npix += tnpix
 
-    masked_frac = nmasked/npix
-    return masked_frac
+    badpix_frac = nmasked/npix
+    return badpix_frac
 
 
 def convert_string_to_seed(string):

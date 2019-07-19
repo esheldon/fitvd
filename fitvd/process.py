@@ -189,7 +189,7 @@ class Processor(object):
             new_obslist.meta.update(obslist.meta)
 
             for epoch,obs in enumerate(obslist):
-                npix, nmasked = util.get_masked_frac_sums(obs)
+                npix, nmasked = util.get_badpix_frac_sums(obs)
                 maskfrac = nmasked/npix
                 if maskfrac < mf:
                     new_obslist.append(obs)
@@ -269,7 +269,7 @@ class Processor(object):
             new_obslist.meta.update(obslist.meta)
 
             for epoch,obs in enumerate(obslist):
-                npix, nmasked = util.get_masked_frac_sums(obs)
+                npix, nmasked = util.get_badpix_frac_sums(obs)
                 ngood = npix-nmasked
 
                 if ngood >= min_npix:
@@ -354,7 +354,7 @@ class Processor(object):
                 return None, flags
 
 
-        mbobs.meta['masked_frac'] = util.get_masked_frac(mbobs)
+        mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
 
         if 'flux' in self.config['parspace']:
             mname=self.config['mof']['model']

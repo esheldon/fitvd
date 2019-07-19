@@ -425,10 +425,11 @@ class MOFFitter(FitterBase):
             ('dec','f8'),
             ('fof_id','i8'),  # fof id within image
             ('fof_size', 'i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
             ('flags','i4'),
             #('flagstr','U11'),
             ('flagstr','S18'),
-            ('masked_frac','f4'),
+            ('badpix_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),
@@ -512,10 +513,10 @@ class MOFFitter(FitterBase):
 
 
             for i,res in enumerate(reslist):
-                t=output[i] 
+                t=output[i]
                 mbobs = mbobs_list[i]
 
-                t['masked_frac'] = mbobs.meta['masked_frac']
+                t['badpix_frac'] = mbobs.meta['badpix_frac']
 
                 for band,obslist in enumerate(mbobs):
                     meta = obslist.meta
@@ -598,9 +599,10 @@ class MOFFluxFitter(MOFFitter):
             ('dec', 'f8'),
             ('fof_id', 'i8'),  # fof id within image
             ('fof_size', 'i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
             ('flags', 'i4'),
             ('flagstr', 'S18'),
-            ('masked_frac', 'f4'),
+            ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
             ('psf_flux_flags', 'i4', nband),
@@ -651,10 +653,11 @@ class MOFFitterGS(MOFFitter):
             ('dec','f8'),
             ('fof_id','i8'),  # fof id within image
             ('fof_size','i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
             ('flags','i4'),
             #('flagstr','U11'),
             ('flagstr','S18'),
-            ('masked_frac','f4'),
+            ('badpix_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),
@@ -829,10 +832,11 @@ class MOFFluxFitterGS(MOFFitterGS):
             ('dec','f8'),
             ('fof_id','i8'),  # fof id within image
             ('fof_size','i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
             ('flags','i4'),
             #('flagstr','U11'),
             ('flagstr','S18'),
-            ('masked_frac','f4'),
+            ('badpix_frac','f4'),
             ('psf_g','f8',2),
             ('psf_T','f8'),
             ('psf_flux_flags','i4',nband),
