@@ -337,12 +337,15 @@ class Processor(object):
         else:
             mbobs, flags = self._cut_high_maskfrac(mbobs)
 
+        # before setting weight, because circular masking can blank
+        # out lots of the stamp but its ok
+        mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
+
         if flags != 0:
             return None, flags
 
         if 'inject' in self.config and self.config['inject']['do_inject']:
             self._inject_fake_objects(mbobs)
-
 
         mbobs, flags = self._set_weight(mbobs, index)
         if flags != 0:
@@ -352,9 +355,6 @@ class Processor(object):
             mbobs, flags = self._cut_masked_center(mbobs)
             if flags != 0:
                 return None, flags
-
-
-        mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
 
         if 'flux' in self.config['parspace']:
             mname=self.config['mof']['model']
@@ -786,10 +786,10 @@ class Processor(object):
         """
 
 
-        if self.config['weight_type'] in ('weight','uberseg'):
+        if self.config['weight_type'] in ('weight', 'uberseg'):
             return mbobs, 0
 
-        assert self.config['weight_type'] in ('circular-mask')
+        assert self.config['weight_type'] in ('circular-mask',)
 
         # extra space around the object
         fwhm=1.5
@@ -808,7 +808,7 @@ class Processor(object):
                     scale = m.get_obs(0,0).jacobian.scale
                     rad = rad*scale
                 radlist.append( rad )
-        
+
         assert len(radlist) > 0,'expected radius in one meds at least'
         radius_arcsec = max(radlist)
         radius_arcsec = np.sqrt(radius_arcsec**2 + exrad**2)
