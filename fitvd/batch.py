@@ -20,13 +20,13 @@ import desmasks
 from . import split
 from . import files
 from . import fofs
-from .files import StagedOutFile
 
 logger = logging.getLogger(__name__)
 
+
 class ShellCollateBatch(dict):
     def __init__(self, args):
-        self.args=args
+        self.args = args
         self._load_configs()
 
         self._make_dirs()
@@ -38,28 +38,28 @@ class ShellCollateBatch(dict):
         for tilename in self.tile_conf['tilenames']:
             self.go_tile(tilename)
 
-
     def go_tile(self, tilename):
         """
         write the script to collate the files
         """
 
         if 'fofs' not in self.fit_conf:
-            meds_text='--meds=%s' % self.meds_info[tilename][0]
+            meds_text = '--meds=%s' % self.meds_info[tilename][0]
         else:
-            meds_text=''
-        text=_collate_script_template % {
+            meds_text = ''
+
+        text = _collate_script_template % {
             'run': self['run'],
             'fit_config': self['fit_config'],
-            'n':self.args.n,
-            'tilename':tilename,
+            'n': self.args.n,
+            'tilename': tilename,
             'meds_text': meds_text,
         }
 
-        collate_script=files.get_collate_script_path(self['run'], tilename)
+        collate_script = files.get_collate_script_path(self['run'], tilename)
 
-        print('writing script:',collate_script)
-        with open(collate_script,'w') as fobj:
+        print('writing script:', collate_script)
+        with open(collate_script, 'w') as fobj:
             fobj.write(text)
 
         os.system('chmod 755 %s' % collate_script)
@@ -72,13 +72,13 @@ class ShellCollateBatch(dict):
         for d in dirs:
             try:
                 os.makedirs(d)
-            except:
+            except FileExistsError:
                 pass
 
     def _load_configs(self):
 
         with open(self.args.run_config) as fobj:
-            run_config=yaml.load(fobj)
+            run_config = yaml.load(fobj)
         self.update(run_config)
 
         self['fit_config'] = os.path.abspath(
@@ -89,13 +89,11 @@ class ShellCollateBatch(dict):
         with open(self['fit_config']) as fobj:
             self.fit_conf = yaml.load(fobj)
 
+        bname = os.path.basename(self.args.run_config)
+        self['run'] = bname.replace('.yaml', '')
 
-        bname=os.path.basename(self.args.run_config)
-        self['run'] = bname.replace('.yaml','')
-
-        self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.tile_conf = files.read_yaml(self.args.tile_config)
         self.meds_info = _get_meds_file_info(self, self.tile_conf)
-
 
 
 class WQCollateBatch(ShellCollateBatch):
@@ -104,12 +102,12 @@ class WQCollateBatch(ShellCollateBatch):
         write WQ scripts
         """
 
-        job_name='collate-%s-%s' % (self['run'], tilename)
+        job_name = 'collate-%s-%s' % (self['run'], tilename)
 
         if 'fofs' not in self.fit_conf:
-            meds_text='--meds=%s' % self.meds_info[tilename][0]
+            meds_text = '--meds=%s' % self.meds_info[tilename][0]
         else:
-            meds_text=''
+            meds_text = ''
 
         text = _collate_wq_template % {
             'run': self['run'],
@@ -120,40 +118,39 @@ class WQCollateBatch(ShellCollateBatch):
             'tilename': tilename,
             'meds_text': meds_text,
         }
-        wq_script=files.get_wq_collate_script_path(self['run'], tilename)
+        wq_script = files.get_wq_collate_script_path(self['run'], tilename)
 
-        wqlog=wq_script + '.wqlog'
+        wqlog = wq_script + '.wqlog'
         if os.path.exists(wqlog):
             try:
                 os.remove(wqlog)
-            except:
+            except FileNotFoundError:
                 pass
 
-        print('writing:',wq_script)
-        with open(wq_script,'w') as fobj:
+        print('writing:', wq_script)
+        with open(wq_script, 'w') as fobj:
             fobj.write(text)
 
 
 class FoFBatchBase(dict):
     def __init__(self, args):
-        self.args=args
+        self.args = args
 
-        self.run_conf=files.read_yaml(self.args.run_config)
-        self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.run_conf = files.read_yaml(self.args.run_config)
+        self.tile_conf = files.read_yaml(self.args.tile_config)
 
         self['fit_config'] = os.path.abspath(
             os.path.expandvars(
                 self.run_conf['fit_config']
             )
         )
-        self.fit_conf=files.read_yaml(self['fit_config'])
-        assert 'fofs' in self.fit_conf,'fofs entry must be in fit config'
+        self.fit_conf = files.read_yaml(self['fit_config'])
+        assert 'fofs' in self.fit_conf, 'fofs entry must be in fit config'
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
         self.meds_info = _get_meds_file_info(self.run_conf, self.tile_conf)
 
         self._make_dirs()
-
 
     def go(self):
         """
@@ -167,14 +164,14 @@ class FoFBatchBase(dict):
         write the script to make the fof groups
         """
         fof_file = files.get_fof_file(self['run'], tilename)
-        plot_file = fof_file.replace('.fits','.png')
+        plot_file = fof_file.replace('.fits', '.png')
 
         meds_files = self.meds_info[tilename]
 
         fof_band = self.run_conf['fof_band']
 
         if self.fit_conf.get('use_mask', False):
-            uvista_bands = self.run_conf.get('uvista_bands',[])
+            uvista_bands = self.run_conf.get('uvista_bands', [])
             if len(uvista_bands) != 0:
                 with_uvista = True
             else:
@@ -187,26 +184,23 @@ class FoFBatchBase(dict):
             bounds_file = desmasks.files.get_bounds_file(tilename)
             mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)
         else:
-            mask_text=''
+            mask_text = ''
 
-        text=_fof_script_template % {
-            'fof_file':fof_file,
-            'plot_file':plot_file,
-            'fit_config':self['fit_config'],
-            'meds_file':meds_files[fof_band],
+        text = _fof_script_template % {
+            'fof_file': fof_file,
+            'plot_file': plot_file,
+            'fit_config': self['fit_config'],
+            'meds_file': meds_files[fof_band],
             'mask_text': mask_text,
         }
 
-        fof_script=files.get_fof_script_path(self['run'], tilename)
-        print('writing fof script:',fof_script)
-        with open(fof_script,'w') as fobj:
+        fof_script = files.get_fof_script_path(self['run'], tilename)
+        print('writing fof script:', fof_script)
+        with open(fof_script, 'w') as fobj:
             fobj.write(text)
+
         os.system('chmod 755 %s' % fof_script)
 
-    def _get_meds_files(self, tilename):
-        """
-        get meds files for the given tilename and bands
-        """
     def _make_dirs(self):
         dirs = [
             files.get_script_dir(self['run']),
@@ -215,11 +209,13 @@ class FoFBatchBase(dict):
         for d in dirs:
             try:
                 os.makedirs(d)
-            except:
+            except FileExistsError:
                 pass
+
 
 class ShellFoFBatch(FoFBatchBase):
     pass
+
 
 class WQFoFBatch(FoFBatchBase):
     def go_tile(self, tilename):
@@ -227,37 +223,37 @@ class WQFoFBatch(FoFBatchBase):
         write WQ scripts
         """
         # this will write the basic script
-        super(WQFoFBatch,self).go_tile(tilename)
+        super(WQFoFBatch, self).go_tile(tilename)
 
         # now write the submit script
-        fof_script=files.get_fof_script_path(self['run'], tilename)
+        fof_script = files.get_fof_script_path(self['run'], tilename)
 
-        job_name='%s-%s-make-fofs' % (self['run'], tilename)
+        job_name = '%s-%s-make-fofs' % (self['run'], tilename)
 
         text = _wq_template % {
             'script': fof_script,
             'job_name': job_name,
             'conda_env': self.args.conda_env,
         }
-        wq_script=files.get_wq_fof_script_path(self['run'], tilename)
+        wq_script = files.get_wq_fof_script_path(self['run'], tilename)
 
-        wqlog=wq_script + '.wqlog'
+        wqlog = wq_script + '.wqlog'
         if os.path.exists(wqlog):
             try:
                 os.remove(wqlog)
-            except:
+            except FileNotFoundError:
                 pass
 
-        print('writing:',wq_script)
-        with open(wq_script,'w') as fobj:
+        print('writing:', wq_script)
+        with open(wq_script, 'w') as fobj:
             fobj.write(text)
+
 
 class ShellBatch(dict):
     def __init__(self, args):
-        self.args=args
+        self.args = args
         self._load_configs()
 
-        #self['fit_config'] = os.path.abspath(args.fit_config)
         self['fit_config'] = os.path.abspath(
             os.path.expandvars(
                 self['fit_config']
@@ -273,7 +269,7 @@ class ShellBatch(dict):
         write scripts for all tiles
         """
         for tilename in self.tile_conf['tilenames']:
-            self.rng.seed( self.tile_seeds[tilename] )
+            self.rng.seed(self.tile_seeds[tilename])
             self.go_tile(tilename)
 
     def go_tile(self, tilename):
@@ -282,16 +278,20 @@ class ShellBatch(dict):
         """
 
         fofst = self._get_fofs(tilename)
-        fof_splits = split.get_splits_variable(fofst, self['chunksize'], self['threshold'])
+        fof_splits = split.get_splits_variable(
+            fofst,
+            self['chunksize'],
+            self['threshold'],
+        )
 
-        for isplit,fof_split in enumerate(fof_splits):
+        for isplit, fof_split in enumerate(fof_splits):
 
-            start,end=fof_split
-            if self.args.skip_large and start==end:
+            start, end = fof_split
+            if self.args.skip_large and start == end:
                 logger.info('skipping large: %s' % start)
                 continue
 
-            logger.info('%s %s' % (isplit,fof_split))
+            logger.info('%s %s' % (isplit, fof_split))
             self._write_split(tilename, isplit, fof_split)
 
     def _make_dirs(self):
@@ -308,7 +308,7 @@ class ShellBatch(dict):
         for d in dirs:
             try:
                 os.makedirs(d)
-            except:
+            except FileExistsError:
                 pass
 
     def _write_split(self, tilename, isplit, fof_split):
@@ -319,7 +319,7 @@ class ShellBatch(dict):
 
     def _write_script(self, tilename, isplit, fof_split):
         start, end = fof_split
-        fname=files.get_split_script_path(self['run'], tilename, start, end)
+        fname = files.get_split_script_path(self['run'], tilename, start, end)
 
         output_file = files.get_split_output(
             self['run'],
@@ -344,7 +344,7 @@ class ShellBatch(dict):
         meds_files = self.meds_info[tilename]
         meds_files = ' '.join(meds_files)
 
-        d={}
+        d = {}
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
@@ -379,33 +379,32 @@ class ShellBatch(dict):
         else:
             d['blacklist'] = ''
 
-        text=_script_template % d
+        text = _script_template % d
 
         logger.info('script: %s' % fname)
-        with open(fname,'w') as fobj:
+        with open(fname, 'w') as fobj:
             fobj.write(text)
 
         os.system('chmod 755 %s' % fname)
 
     def _get_seed(self):
-        return self.rng.randint(0,2**31)
+        return self.rng.randint(0, 2**31)
 
     def _load_configs(self):
         with open(self.args.run_config) as fobj:
-            run_config=yaml.load(fobj)
+            run_config = yaml.load(fobj)
         self.update(run_config)
 
-        bname=os.path.basename(self.args.run_config)
-        self['run'] = bname.replace('.yaml','')
+        bname = os.path.basename(self.args.run_config)
+        self['run'] = bname.replace('.yaml', '')
 
-        self.tile_conf=files.read_yaml(self.args.tile_config)
+        self.tile_conf = files.read_yaml(self.args.tile_config)
         self.meds_info = _get_meds_file_info(self, self.tile_conf)
-
 
     def _get_fofs(self, tilename):
         if 'fofs' in self.fit_conf:
             fof_file = files.get_fof_file(self['run'], tilename)
-            nbrs,fofst=files.load_fofs(fof_file)
+            nbrs, fofst = files.load_fofs(fof_file)
         else:
             meds_file = self.meds_info[tilename][0]
             m = meds.MEDS(meds_file)
@@ -414,32 +413,37 @@ class ShellBatch(dict):
 
         return fofst
 
-
     def _set_rng(self):
         self.rng = np.random.RandomState(self['seed'])
-        ntiles = len(self.meds_info)
         self.tile_seeds = {}
         for tilename in self.meds_info:
             self.tile_seeds[tilename] = self.rng.randint(low=0, high=2**15)
+
 
 class WQBatch(ShellBatch):
     """
     just write out the scripts, no submit files
     """
     def _write_split(self, tilename, isplit, fof_split):
-        super(WQBatch,self)._write_split(tilename, isplit, fof_split)
+        super(WQBatch, self)._write_split(tilename, isplit, fof_split)
         self._write_wq_script(tilename, isplit, fof_split)
 
     def _write_wq_script(self, tilename, isplit, fof_split):
         """
         write the wq submit script
         """
-        args=self.args
+        args = self.args
         start, end = fof_split
 
-        script_file=files.get_split_script_path(self['run'], tilename, start, end)
-        wq_file=files.get_split_wq_path(self['run'], tilename, start, end)
-        job_name='%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
+        script_file = files.get_split_script_path(
+            self['run'],
+            tilename,
+            start,
+            end,
+        )
+
+        wq_file = files.get_split_wq_path(self['run'], tilename, start, end)
+        job_name = '%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
 
         output_file = files.get_split_output(
             self['run'],
@@ -450,19 +454,19 @@ class WQBatch(ShellBatch):
         )
 
         if args.missing or args.verify:
-            file_exists=os.path.exists(output_file)
+            file_exists = os.path.exists(output_file)
             if not file_exists:
-                ok=False
+                ok = False
             else:
                 if args.verify:
                     with fitsio.FITS(output_file) as fits:
                         if ('model_fits' in fits and 'epochs_data' in fits):
-                            ok=True
+                            ok = True
                         else:
                             print('extensions missing')
-                            ok=False
-                else: 
-                    ok=True
+                            ok = False
+                else:
+                    ok = True
 
             if ok:
                 if os.path.exists(wq_file):
@@ -471,23 +475,23 @@ class WQBatch(ShellBatch):
 
         logger.info('wq script: %s' % wq_file)
 
-        d={}
+        d = {}
         d['script'] = script_file
         d['job_name'] = job_name
         d['conda_env'] = args.conda_env
 
-        text=_wq_template % d
+        text = _wq_template % d
 
-        wqlog=wq_file + '.wqlog'
+        wqlog = wq_file + '.wqlog'
         if os.path.exists(wqlog):
             try:
                 os.remove(wqlog)
-            except:
+            except FileNotFoundError:
                 pass
 
-
-        with open(wq_file,'w') as fobj:
+        with open(wq_file, 'w') as fobj:
             fobj.write(text)
+
 
 class CondorBatch(ShellBatch):
     """
@@ -499,37 +503,40 @@ class CondorBatch(ShellBatch):
         write all the scripts
         """
 
-        super(CondorBatch,self).go()
+        super(CondorBatch, self).go()
 
     def go_tile(self, tilename):
         """
         write condor files for one tile
         """
 
-        assert not self.args.verify,'no verify for condor yet'
+        assert not self.args.verify, 'no verify for condor yet'
 
         self._clean_condor_files(tilename)
 
         self._write_master(tilename)
 
         fofst = self._get_fofs(tilename)
-        fof_splits = split.get_splits_variable(fofst, self['chunksize'], self['threshold'])
+        fof_splits = split.get_splits_variable(
+            fofst,
+            self['chunksize'],
+            self['threshold'],
+        )
 
-        njobs=0
-        fobj=None
+        njobs = 0
+        fobj = None
 
-        icondor=0
-        for isplit,fof_split in enumerate(fof_splits):
-            start,end=fof_split
-            if self.args.skip_large and start==end:
-                #logger.info('skipping large: %s' % start)
+        icondor = 0
+        for isplit, fof_split in enumerate(fof_splits):
+            start, end = fof_split
+            if self.args.skip_large and start == end:
                 continue
 
             if (self.args.missing and
                     self._split_exists(tilename, isplit, fof_split)):
                 continue
 
-            if njobs % self['jobs_per_sub']==0:
+            if njobs % self['jobs_per_sub'] == 0:
                 if fobj is not None:
                     fobj.close()
                 fobj = self._open_condor_script(tilename, icondor)
@@ -573,14 +580,14 @@ class CondorBatch(ShellBatch):
             ext='log',
         )
 
-        d={}
+        d = {}
         d['seed'] = self._get_seed()
         d['output_file'] = os.path.abspath(output_file)
         d['fit_config'] = self['fit_config']
         d['start'] = start
         d['end'] = end
         d['logfile'] = os.path.abspath(log_file)
-        d['job_name']='%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
+        d['job_name'] = '%s-%s-%06d-%06d' % (self['run'], tilename, start, end)
 
         job = _condor_job_template % d
 
@@ -593,7 +600,6 @@ class CondorBatch(ShellBatch):
 
         for tilename in self.meds_info:
             dirs += [
-                #files.get_split_script_dir(self['run'], tilename),
                 files.get_split_dir(self['run'], tilename),
                 files.get_condor_dir(self['run'], tilename),
             ]
@@ -601,10 +607,10 @@ class CondorBatch(ShellBatch):
         for d in dirs:
             try:
                 os.makedirs(d)
-            except:
+            except FileExistsError:
                 pass
 
-    def _write_master(self,tilename):
+    def _write_master(self, tilename):
         """
         write the master script
         """
@@ -618,25 +624,25 @@ class CondorBatch(ShellBatch):
             fofs_text = ''
 
         text = _condor_master_template % {
-            'meds_files':meds_files,
+            'meds_files': meds_files,
             'fofs_text': fofs_text,
         }
-        master_script=files.get_condor_master_path(self['run'],tilename)
-        print('writing master:',master_script)
-        with open(master_script,'w') as fobj:
+        master_script = files.get_condor_master_path(self['run'], tilename)
+        print('writing master:', master_script)
+        with open(master_script, 'w') as fobj:
             fobj.write(text)
 
         os.system('chmod 755 %s' % master_script)
 
     def _clean_condor_files(self, tilename):
         for icondor in range(1000):
-            cname=files.get_condor_script(self['run'], tilename, icondor)
-            sname=cname+'.submitted'
-            for fname in [cname,sname]:
+            cname = files.get_condor_script(self['run'], tilename, icondor)
+            sname = cname+'.submitted'
+            for fname in [cname, sname]:
                 if os.path.exists(fname):
                     try:
                         os.remove(fname)
-                    except:
+                    except FileNotFoundError:
                         pass
 
     def _open_condor_script(self, tilename, icondor):
@@ -644,20 +650,20 @@ class CondorBatch(ShellBatch):
         open the condor script
         """
 
-        fname=files.get_condor_script(self['run'], tilename, icondor)
-        print('condor script:',fname)
-        fobj = open(fname,'w')
+        fname = files.get_condor_script(self['run'], tilename, icondor)
+        print('condor script:', fname)
+        fobj = open(fname, 'w')
 
-        master_script=files.get_condor_master_path(self['run'], tilename)
+        master_script = files.get_condor_master_path(self['run'], tilename)
         text = _condor_head % {
-            'master_script':master_script,
+            'master_script': master_script,
         }
         fobj.write(text)
 
         return fobj
 
 
-_collate_script_template=r"""#!/bin/bash
+_collate_script_template = r"""#!/bin/bash
 
 run="%(run)s"
 
@@ -668,7 +674,7 @@ mpirun -n %(n)d fitvd-collate-mpi \
     --tilename=%(tilename)s
 """
 
-_collate_wq_template=r"""
+_collate_wq_template = r"""
 command: |
     . ~/.bashrc
     source activate %(conda_env)s
@@ -685,9 +691,7 @@ N: %(n)d
 hostfile: auto
 """
 
-
-
-_fof_script_template=r"""#!/bin/bash
+_fof_script_template = r"""#!/bin/bash
 
 fof_file="%(fof_file)s"
 plot_file="%(plot_file)s"
@@ -703,7 +707,7 @@ fitvd-make-fofs \
 
 """
 
-_script_template=r"""#!/bin/bash
+_script_template = r"""#!/bin/bash
 
 if [[ -n $_CONDOR_SCRATCH_DIR ]]; then
     # the condor system creates a scratch directory for us,
@@ -747,7 +751,7 @@ mv -vf $tmplog $logfile
 """
 
 
-_wq_template=r"""
+_wq_template = r"""
 command: |
     . ~/.bashrc
     source activate %(conda_env)s
@@ -775,15 +779,15 @@ kill_sig        = SIGINT
 +Experiment     = "astro"
 """
 
-_condor_job_template="""
+_condor_job_template = """
 +job_name = "%(job_name)s"
 Arguments = %(seed)d %(output_file)s %(fit_config)s %(start)d %(end)d %(logfile)s
 
 Queue
-"""
+"""  # noqa
 
 
-_condor_master_template=r"""#!/bin/bash
+_condor_master_template = r"""#!/bin/bash
 
 if [[ -n $_CONDOR_SCRATCH_DIR ]]; then
     tmpdir=$_CONDOR_SCRATCH_DIR
@@ -819,6 +823,7 @@ fitvd \
 mv -vf $tmplog $logfile
 """
 
+
 def _get_meds_file_info(run_conf, tile_conf):
     """
     returns a dict keyed by tilename, holding a list of
@@ -826,9 +831,9 @@ def _get_meds_file_info(run_conf, tile_conf):
     """
     fi = {}
 
-    des_bands = run_conf.get('des_bands',[])
-    video_bands = run_conf.get('video_bands',[])
-    uvista_bands = run_conf.get('uvista_bands',[])
+    des_bands = run_conf.get('des_bands', [])
+    video_bands = run_conf.get('video_bands', [])
+    uvista_bands = run_conf.get('uvista_bands', [])
 
     for tilename_full in tile_conf['tilenames']:
         if 'DES' in tilename_full:
@@ -862,11 +867,6 @@ def _get_meds_file_info(run_conf, tile_conf):
             )
             meds_list.append(fname)
 
-
-        #fi[tilename] = meds_list
         fi[tilename_full] = meds_list
 
     return fi
-
-
-
