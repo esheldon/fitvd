@@ -8,10 +8,12 @@ def get_flagvals(flagnames):
 
     return flagvals
 
+
 def get_flagval(flagname):
     return DESY5_BADPIX_MAP[flagname]
 
-DESY5_BADPIX_MAP={
+
+DESY5_BADPIX_MAP = {
     "BPM":          1,  #/* set in bpm (hot/dead pixel/column)        */
     "SATURATE":     2,  #/* saturated pixel                           */
     "INTERP":       4,  #/* interpolated pixel                        */
@@ -30,5 +32,3 @@ DESY5_BADPIX_MAP={
     "NEAREDGE":  8192,  #/* suspect due to edge proximity             */
     "TAPEBUMP": 16384,  #/* suspect due to known tape bump            */
 }
-
-

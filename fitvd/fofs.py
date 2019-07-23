@@ -97,7 +97,8 @@ class MEDSNbrs(object):
         maxsize_to_replace - postage stamp size to replace with maxsize
         maxsize - size ot use instead of maxsize_to_replace to compute overlap
 
-        check_seg - use object's seg map to get nbrs in addition to postage stamp overlap
+        check_seg - use object's seg map to get nbrs in addition to postage
+        stamp overlap
     """
 
     def __init__(self, meds, conf, is_masked=None):
@@ -115,11 +116,11 @@ class MEDSNbrs(object):
         if self.conf['method'] == 'radius':
             return self._init_bounds_by_radius()
         else:
-            raise NotImplementedError('stamps not implemented for ra,dec version')
+            raise NotImplementedError('stamps not implemented for '
+                                      'ra,dec version')
             return self._init_bounds_by_stamps()
 
     def _init_bounds_by_radius(self):
-
 
         # might be shifted
         ra, dec = self._get_shifted_positions()
@@ -130,29 +131,29 @@ class MEDSNbrs(object):
         ra_diff = (ra - med_ra) * 3600.0
         dec_diff = (dec - med_dec) * 3600.0
 
-        cosdec = np.cos( np.radians(dec) )
-        self.l = (ra_diff - r)*cosdec
-        self.r = (ra_diff + r)*cosdec
-        self.b = (dec_diff - r)
-        self.t = (dec_diff + r)
+        cosdec = np.cos(np.radians(dec))
+        self.left = (ra_diff - r)*cosdec
+        self.right = (ra_diff + r)*cosdec
+        self.bot = (dec_diff - r)
+        self.top = (dec_diff + r)
 
     def _get_radius(self):
         """
         get radius for offset calculations
         """
 
-        radius_name=self.conf['radius_column']
+        radius_name = self.conf['radius_column']
 
-        min_radius=self.conf.get('min_radius_arcsec',None)
+        min_radius = self.conf.get('min_radius_arcsec', None)
         if min_radius is None:
             # arcsec
-            min_radius=1.0
+            min_radius = 1.0
 
-        max_radius=self.conf.get('max_radius_arcsec',None)
+        max_radius = self.conf.get('max_radius_arcsec', None)
         if max_radius is None:
-            max_radius=np.inf
+            max_radius = np.inf
 
-        m=self.meds
+        m = self.meds
 
         r = m[radius_name].copy()
 
@@ -172,7 +173,7 @@ class MEDSNbrs(object):
 
         We also assume we are not close to the poles, so dec is not modified.
         """
-        m=self.meds
+        m = self.meds
 
         ra = m['ra'].copy()
         dec = m['dec'].copy()
@@ -185,111 +186,109 @@ class MEDSNbrs(object):
 
         return ra, dec
 
-
-    def get_nbrs(self,verbose=True):
+    def get_nbrs(self, verbose=True):
         nbrs_data = []
-        dtype = [('number','i8'),('nbr_number','i8')]
+        dtype = [('number', 'i8'), ('nbr_number', 'i8')]
 
         for mindex in prange(self.meds.size):
             nbrs = self.check_mindex(mindex)
 
-            #add to final list
+            # add to final list
             for nbr in nbrs:
-                nbrs_data.append((self.meds['number'][mindex],nbr))
+                nbrs_data.append((self.meds['number'][mindex], nbr))
 
-        #return array sorted by number
-        nbrs_data = np.array(nbrs_data,dtype=dtype)
+        # return array sorted by number
+        nbrs_data = np.array(nbrs_data, dtype=dtype)
         i = np.argsort(nbrs_data['number'])
         nbrs_data = nbrs_data[i]
 
         return nbrs_data
 
-    def check_mindex(self,mindex):
+    def check_mindex(self, mindex):
         m = self.meds
 
-        #check that current gal has OK stamp, or return bad crap
-        if (m['orig_start_row'][mindex,0] == -9999
-                or m['orig_start_col'][mindex,0] == -9999
+        # check that current gal has OK stamp, or return bad crap
+        if (m['orig_start_row'][mindex, 0] == -9999
+                or m['orig_start_col'][mindex, 0] == -9999
                 or self.is_masked[mindex]):
 
-            nbr_numbers = np.array([-1],dtype=int)
+            nbr_numbers = np.array([-1], dtype=int)
             return nbr_numbers
 
         q, = np.where(
-            (self.l[mindex] < self.r)
+            (self.left[mindex] < self.right)
             &
-            (self.r[mindex] > self.l)
+            (self.right[mindex] > self.left)
         )
         if q.size > 0:
             qt, = np.where(
-                (self.t[mindex] > self.b[q])
+                (self.top[mindex] > self.bot[q])
                 &
-                (self.b[mindex] < self.t[q])
+                (self.bot[mindex] < self.top[q])
             )
             q = q[qt]
             if q.size > 0:
-               # remove dups and crap
-               qt, = np.where(
-                   (m['number'][mindex] != m['number'][q])
-                   &
-                   (m['orig_start_row'][q,0] != -9999)
-                   & (m['orig_start_col'][q,0] != -9999)
-               )
-               q = q[qt]
+                # remove dups and crap
+                qt, = np.where(
+                    (m['number'][mindex] != m['number'][q])
+                    &
+                    (m['orig_start_row'][q, 0] != -9999)
+                    & (m['orig_start_col'][q, 0] != -9999)
+                )
+                q = q[qt]
 
         nbr_numbers = m['number'][q]
         if nbr_numbers.size > 0:
             nbr_numbers = np.unique(nbr_numbers)
             inds = nbr_numbers-1
             q, = np.where(
-                  (m['orig_start_row'][inds,0] != -9999)
-                & (m['orig_start_col'][inds,0] != -9999)
+                (m['orig_start_row'][inds, 0] != -9999)
+                & (m['orig_start_col'][inds, 0] != -9999)
                 & (self.is_unmasked[inds])
             )
             nbr_numbers = nbr_numbers[q]
 
-
-        #if have stuff return unique else return -1
+        # if have stuff return unique else return -1
         if nbr_numbers.size == 0:
-            nbr_numbers = np.array([-1],dtype=int)
+            nbr_numbers = np.array([-1], dtype=int)
 
         return nbr_numbers
 
+
 class NbrsFoF(object):
-    def __init__(self,nbrs_data):
+    def __init__(self, nbrs_data):
         self.nbrs_data = nbrs_data
         self.Nobj = len(np.unique(nbrs_data['number']))
 
-        #records fofid of entry
-        self.linked = np.zeros(self.Nobj,dtype='i8')
+        # records fofid of entry
+        self.linked = np.zeros(self.Nobj, dtype='i8')
         self.fofs = {}
 
         self._fof_data = None
 
-    def get_fofs(self,verbose=True):
+    def get_fofs(self, verbose=True):
         self._make_fofs(verbose=verbose)
         return self._fof_data
 
-    def _make_fofs(self,verbose=True):
-        #init
+    def _make_fofs(self, verbose=True):
         self._init_fofs()
-
 
         for i in prange(self.Nobj):
             self._link_fof(i)
 
-        for fofid,k in enumerate(self.fofs):
-            inds = np.array(list(self.fofs[k]),dtype=int)
+        for fofid, k in enumerate(self.fofs):
+            inds = np.array(list(self.fofs[k]), dtype=int)
             self.linked[inds[:]] = fofid
+
         self.fofs = {}
 
         self._make_fof_data()
 
-    def _link_fof(self,mind):
-        #get nbrs for this object
+    def _link_fof(self, mind):
+        # get nbrs for this object
         nbrs = set(self._get_nbrs_index(mind))
 
-        #always make a base fof
+        # always make a base fof
         if self.linked[mind] == -1:
             fofid = copy.copy(mind)
             self.fofs[fofid] = set([mind])
@@ -297,25 +296,28 @@ class NbrsFoF(object):
         else:
             fofid = copy.copy(self.linked[mind])
 
-        #loop through nbrs
+        # loop through nbrs
         for nbr in nbrs:
             if self.linked[nbr] == -1 or self.linked[nbr] == fofid:
-                #not linked so add to current
+                # not linked so add to current
                 self.fofs[fofid].add(nbr)
                 self.linked[nbr] = fofid
             else:
-                #join!
+                # join!
                 self.fofs[self.linked[nbr]] |= self.fofs[fofid]
                 del self.fofs[fofid]
                 fofid = copy.copy(self.linked[nbr])
-                inds = np.array(list(self.fofs[fofid]),dtype=int)
+                inds = np.array(list(self.fofs[fofid]), dtype=int)
                 self.linked[inds[:]] = fofid
 
     def _make_fof_data(self):
         self._fof_data = []
         for i in range(self.Nobj):
-            self._fof_data.append((self.linked[i],i+1))
-        self._fof_data = np.array(self._fof_data,dtype=[('fofid','i8'),('number','i8')])
+            self._fof_data.append((self.linked[i], i+1))
+        self._fof_data = np.array(
+            self._fof_data,
+            dtype=[('fofid', 'i8'), ('number', 'i8')]
+        )
         i = np.argsort(self._fof_data['number'])
         self._fof_data = self._fof_data[i]
         assert np.all(self._fof_data['fofid'] >= 0)
@@ -324,12 +326,14 @@ class NbrsFoF(object):
         self.linked[:] = -1
         self.fofs = {}
 
-    def _get_nbrs_index(self,mind):
-        q, = np.where((self.nbrs_data['number'] == mind+1) & (self.nbrs_data['nbr_number'] > 0))
+    def _get_nbrs_index(self, mind):
+        q, = np.where((self.nbrs_data['number'] == mind+1)
+                      & (self.nbrs_data['nbr_number'] > 0))
         if len(q) > 0:
             return list(self.nbrs_data['nbr_number'][q]-1)
         else:
             return []
+
 
 def plot_fofs(m,
               fof,
@@ -352,10 +356,10 @@ def plot_fofs(m,
     try:
         import biggles
         import esutil as eu
-        have_biggles=True
+        have_biggles = True
     except ImportError:
-        have_biggles=False
-        
+        have_biggles = False
+
     if not have_biggles:
         print("skipping FOF plot because biggles is not "
               "available")
@@ -364,32 +368,31 @@ def plot_fofs(m,
     x = m['ra']
     y = m['dec']
 
-    hd=eu.stat.histogram(fof['fofid'], more=True)
-    wlarge,=np.where(hd['hist'] >= minsize)
-    ngroup=wlarge.size
+    hd = eu.stat.histogram(fof['fofid'], more=True)
+    wlarge, = np.where(hd['hist'] >= minsize)
+    ngroup = wlarge.size
     if ngroup > 0:
-        colors=rainbow(ngroup)
+        colors = rainbow(ngroup)
         random.shuffle(colors)
     else:
-        colors=None
+        colors = None
 
-    print("unique groups >= %d: %d" % (minsize,wlarge.size))
-    print("largest fof:",hd['hist'].max())
+    print("unique groups >= %d: %d" % (minsize, wlarge.size))
+    print("largest fof:", hd['hist'].max())
 
-    xmin,xmax = x.min(), x.max()
-    ymin,ymax = y.min(), y.max()
+    xmin, xmax = x.min(), x.max()
+    ymin, ymax = y.min(), y.max()
     if orig_dims is not None:
-        xmin,xmax=0,orig_dims[1]
-        ymin,ymax=0,orig_dims[0]
-        xrng=[xmin,xmax]
-        yrng=[ymin,ymax]
+        xmin, xmax = 0, orig_dims[1]
+        ymin, ymax = 0, orig_dims[0]
+        xrng = [xmin, xmax]
+        yrng = [ymin, ymax]
         aratio = (ymax-ymin)/(xmax-xmin)
     else:
-        xrng,yrng=None,None
-        #aratio=None
+        xrng, yrng = None, None
         aratio = (ymax-ymin)/(xmax-xmin)
 
-    plt=biggles.FramedPlot(
+    plt = biggles.FramedPlot(
         xlabel='RA',
         ylabel='DEC',
         xrange=xrng,
@@ -397,26 +400,26 @@ def plot_fofs(m,
         aspect_ratio=aratio,
     )
 
-    allpts=biggles.Points(
+    allpts = biggles.Points(
         x, y,
         type=type,
     )
     plt.add(allpts)
 
-    rev=hd['rev']
-    icolor=0
+    rev = hd['rev']
+    icolor = 0
     for i in range(hd['hist'].size):
         if rev[i] != rev[i+1]:
-            w=rev[ rev[i]:rev[i+1] ]
+            w = rev[rev[i]:rev[i+1]]
             if w.size >= minsize:
-                indices=fof['number'][w]-1
+                indices = fof['number'][w]-1
 
-                color=colors[icolor]
-                xx=np.array(x[indices],ndmin=1)
-                yy=np.array(y[indices],ndmin=1)
+                color = colors[icolor]
+                xx = np.array(x[indices], ndmin=1)
+                yy = np.array(y[indices], ndmin=1)
 
                 pts = biggles.Points(
-                    xx, yy, 
+                    xx, yy,
                     type=fof_type,
                     size=fof_size,
                     color=color,
@@ -425,17 +428,19 @@ def plot_fofs(m,
                 plt.add(pts)
                 icolor += 1
 
-    height=int(width*aratio)
-    if plotfile is not None:
-        ffront=os.path.basename(plotfile)
-        name=ffront.split('-mof-')[0]
-        plt.title='%s FOF groups' % name
+    height = int(width*aratio)
 
-        print("writing:",plotfile)
-        plt.write_img(width,int(height),plotfile)
+    if plotfile is not None:
+        ffront = os.path.basename(plotfile)
+        name = ffront.split('-mof-')[0]
+        plt.title = '%s FOF groups' % name
+
+        print("writing:", plotfile)
+        plt.write_img(width, int(height), plotfile)
 
     if show:
         plt.show(width=width, height=height)
+
 
 def rainbow(num, type='hex'):
     """
@@ -456,32 +461,30 @@ def rainbow(num, type='hex'):
     # not going to 360
     minh = 0.0
     # 270 would go to pure blue
-    #maxh = 270.0
+    # maxh = 270.0
     maxh = 285.0
 
-    if num==1:
-        hstep=0
+    if num == 1:
+        hstep = 0
     else:
         hstep = (maxh-minh)/(num-1)
 
-    colors=[]
+    colors = []
     for i in range(num):
         h = minh + i*hstep
 
         # just change the hue
-        r,g,b = colorsys.hsv_to_rgb(h/360.0, 1.0, 1.0)
+        r, g, b = colorsys.hsv_to_rgb(h/360.0, 1.0, 1.0)
         r *= 255
         g *= 255
         b *= 255
         if type == 'rgb':
-            colors.append( (r,g,b) )
+            colors.append((r, g, b))
         elif type == 'hex':
 
             rgb = (int(r), int(g), int(b))
-            colors.append( rgb_to_hex(rgb) )
+            colors.append(rgb_to_hex(rgb))
         else:
             raise ValueError("color type should be 'rgb' or 'hex'")
 
     return colors
-
-
