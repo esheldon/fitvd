@@ -3,53 +3,53 @@ from __future__ import print_function
 import numpy as np
 
 # no attempt was made at all
-NO_ATTEMPT=2**0
+NO_ATTEMPT = 2**0
 
 # no data was available, e.g. if there
 # were no epochs at all
-NO_DATA=2**1
+NO_DATA = 2**1
 
 # No good images were available, e.g. if there was some
 # kind of blacklist used
-IMAGE_FLAGS=2**2
+IMAGE_FLAGS = 2**2
 
 # none of the epochs got a psf fit
-PSF_FAILURE=2**3
+PSF_FAILURE = 2**3
 
 # the object/fof fitting failed
-OBJ_FAILURE=2**4
+OBJ_FAILURE = 2**4
 
 # the masked fraction was too high.  This is checked
 # *before* additional masking is set, e.g. in _set_weight
-HIGH_MASKFRAC=2**5
+HIGH_MASKFRAC = 2**5
 
 # Too few pixels available for fitting
 # occurs in the _set_weight method
-TOO_FEW_PIXELS=2**6
+TOO_FEW_PIXELS = 2**6
 
 # all epochs had the center masked
-ALL_CENTERS_MASKED=2**7
+ALL_CENTERS_MASKED = 2**7
 
 # we skipped the fit because FoF group too large
 FOF_TOO_LARGE = 2**8
 
-FLAG_MAP={
-    'ok':0,
-    0:'ok',
-    'no_attempt':NO_ATTEMPT,
-    NO_ATTEMPT:'no_attempt',
+FLAG_MAP = {
+    'ok': 0,
+    0: 'ok',
+    'no_attempt': NO_ATTEMPT,
+    NO_ATTEMPT: 'no_attempt',
 
-    'no_data':NO_DATA,
-    NO_DATA:'no_data',
+    'no_data': NO_DATA,
+    NO_DATA: 'no_data',
 
-    'image_flags':IMAGE_FLAGS,
-    IMAGE_FLAGS:'image_flags',
+    'image_flags': IMAGE_FLAGS,
+    IMAGE_FLAGS: 'image_flags',
 
     'psf_failure': PSF_FAILURE,
-    PSF_FAILURE:'psf_failure',
+    PSF_FAILURE: 'psf_failure',
 
     'obj_failure': OBJ_FAILURE,
-    OBJ_FAILURE:'obj_failure',
+    OBJ_FAILURE: 'obj_failure',
 
     'high_maskfrac': HIGH_MASKFRAC,
     HIGH_MASKFRAC: 'high_maskfrac',
@@ -64,8 +64,9 @@ FLAG_MAP={
     FOF_TOO_LARGE: 'fof_too_large',
 }
 
-_numorder=[key for key in FLAG_MAP if isinstance(key,int)]
+_numorder = [key for key in FLAG_MAP if isinstance(key, int)]
 _numorder.sort()
+
 
 def get_flag(val):
     """
@@ -87,6 +88,7 @@ def get_flag(val):
         # it must have been the string version
         return FLAG_MAP[val]
 
+
 def get_flagname(val):
     """
     get name for input flag
@@ -107,6 +109,7 @@ def get_flagname(val):
         # it was the string
         return val
 
+
 def checkflag(val):
     """
     check validity of the input flag
@@ -117,7 +120,8 @@ def checkflag(val):
         string or int form of a flag
     """
 
-    assert val in FLAG_MAP,'invalid flag: %s' % val
+    assert val in FLAG_MAP, 'invalid flag: %s' % val
+
 
 def printflags(flags, setonly=False):
     """
@@ -133,24 +137,24 @@ def printflags(flags, setonly=False):
     """
     ntot = 0
     flagtot = 0
-    s = '%19s %7s %8s  %s' % ('flagname','val','num','fraction')
+    s = '%19s %7s %8s  %s' % ('flagname', 'val', 'num', 'fraction')
     print(s)
     print('-'*len(s))
     for val in _numorder:
-        if val==0:
+        if val == 0:
             continue
 
         flagtot |= val
 
         name = get_flagname(val)
-        w,=np.where(flags & val != 0)
+        w, = np.where(flags & val != 0)
         if setonly and w.size == 0:
             continue
 
         ntot += w.size
         frac = w.size/flags.size
-        print('%19s %7d %8d  %g' % (name,val,w.size,frac))
+        print('%19s %7d %8d  %g' % (name, val, w.size, frac))
 
     print('-'*len(s))
     fractot = ntot/flags.size
-    print('%19s %7d %8d  %g' % ('total',flagtot,ntot,fractot))
+    print('%19s %7d %8d  %g' % ('total', flagtot, ntot, fractot))
