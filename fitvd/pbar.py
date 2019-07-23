@@ -8,6 +8,7 @@ __all__ = ['PBar', 'prange']
 import sys
 import time
 
+
 def PBar(iterable, desc='', total=None, leave=True, file=sys.stderr,
          mininterval=0.5, miniters=1, n_bars=20):
     """
@@ -34,20 +35,20 @@ def PBar(iterable, desc='', total=None, leave=True, file=sys.stderr,
     miniters: int, optional
         default 1
 
-        If less than mininterval seconds or miniters iterations have passed since
-        the last progress meter update, it is not updated again.
+        If less than mininterval seconds or miniters iterations have passed
+        since the last progress meter update, it is not updated again.
     """
     if total is None:
         try:
             total = len(iterable)
         except TypeError:
             total = None
-    
+
     prefix = desc+': ' if desc else ''
-    
+
     sp = StatusPrinter(file)
     sp.print_status(prefix + format_meter(0, total, 0, n_bars=n_bars))
-    
+
     start_t = last_print_t = time.time()
     last_print_n = 0
     n = 0
@@ -59,17 +60,19 @@ def PBar(iterable, desc='', total=None, leave=True, file=sys.stderr,
             # We check the counter first, to reduce the overhead of time.time()
             cur_t = time.time()
             if cur_t - last_print_t >= mininterval:
-                sp.print_status(prefix + format_meter(n, total, cur_t-start_t, n_bars=n_bars))
+                fm = format_meter(n, total, cur_t-start_t, n_bars=n_bars)
+                sp.print_status(prefix + fm)
                 last_print_n = n
                 last_print_t = cur_t
-    
+
     if not leave:
         sp.print_status('')
         sys.stdout.write('\r')
     else:
         if last_print_n < n:
             cur_t = time.time()
-            sp.print_status(prefix + format_meter(n, total, cur_t-start_t,n_bars=n_bars))
+            fm = format_meter(n, total, cur_t-start_t, n_bars=n_bars)
+            sp.print_status(prefix + fm)
         file.write('\n')
 
 
@@ -103,25 +106,23 @@ def format_meter(n, total, elapsed, n_bars=20):
     # elapsed - number of seconds passed since start
     if n > total:
         total = None
-    
+
     elapsed_str = format_interval(elapsed)
-    #rate = '%5.2f' % (n / elapsed) if elapsed else '?'
-    
+    # rate = '%5.2f' % (n / elapsed) if elapsed else '?'
+
     if total:
         frac = float(n) / total
-        
+
         bar_length = int(frac*n_bars)
         bar = '#'*bar_length + '-'*(n_bars-bar_length)
-        
+
         percentage = '%3d%%' % (frac * 100)
-        
+
         left_str = format_interval(elapsed / n * (total-n)) if n else '?'
-        
-        #return '|%s| %d/%d %s [elapsed: %s left: %s, %s iters/sec]' % (
-        #    bar, n, total, percentage, elapsed_str, left_str, rate)
+
         return '|%s| %d/%d %s [elapsed: %s left: %s]' % (
             bar, n, total, percentage, elapsed_str, left_str)
-    
+
     else:
         return '%d [elapsed: %s]' % (n, elapsed_str)
 
@@ -130,11 +131,8 @@ class StatusPrinter(object):
     def __init__(self, file):
         self.file = file
         self.last_printed_len = 0
-    
+
     def print_status(self, s):
         self.file.write('\r'+s+' '*max(self.last_printed_len-len(s), 0))
         self.file.flush()
         self.last_printed_len = len(s)
-
-
-
