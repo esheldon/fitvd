@@ -172,10 +172,13 @@ class FoFBatchBase(dict):
 
         if self.fit_conf.get('use_mask', False):
             uvista_bands = self.run_conf.get('uvista_bands', [])
+            video_bands = self.run_conf.get('video_bands', [])
+
             if len(uvista_bands) != 0:
                 with_uvista = True
             else:
                 with_uvista = False
+
 
             mask_file = desmasks.files.get_mask_file(
                 tilename,
@@ -183,6 +186,10 @@ class FoFBatchBase(dict):
             )
             bounds_file = desmasks.files.get_bounds_file(tilename)
             mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)
+
+            if len(video_bands) != 0:
+                objmask_file = desmasks.files.get_objmask_file(tilename)
+                mask_text = '%s --objmask=%s' % (mask_text, objmask_file)
         else:
             mask_text = ''
 

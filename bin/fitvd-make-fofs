@@ -20,7 +20,34 @@ parser.add_argument('meds')
 
 parser.add_argument('--plot-only', action='store_true')
 parser.add_argument('--mask', help='use the mask specified in the file')
+parser.add_argument('--objmask', help='object id based mask')
 parser.add_argument('--bounds', help='use the bounds specified in the file')
+
+def load_mask(args):
+    if args.mask is not None or args.bounds is not None:
+        assert args.bounds is not None and args.mask is not None, \
+            'send both mask and bounds'
+
+        mask = desmasks.TileMask(
+            mask_fname=args.mask,
+            bounds_fname=args.bounds,
+        )
+    else:
+        mask = None
+
+    return mask
+
+
+def load_objmask(args):
+    if args.objmask is not None or args.bounds is not None:
+        assert args.bounds is not None and args.objmask is not None, \
+            'send both objmask and bounds'
+
+        objmask = desmasks.ObjMask(args.objmask)
+    else:
+        objmask = None
+
+    return objmask
 
 
 def main():
@@ -36,16 +63,8 @@ def main():
 
     cat = m.get_cat()
 
-    if args.mask is not None or args.bounds is not None:
-        assert args.bounds is not None and args.mask is not None, \
-            'send both mask and bounds'
-
-        mask = desmasks.TileMask(
-            mask_fname=args.mask,
-            bounds_fname=args.bounds,
-        )
-    else:
-        mask = None
+    mask = load_mask(args)
+    objmask = load_objmask(args)
 
     if args.plot_only:
         fofs = fitsio.read(args.output, ext='fofs')
@@ -65,6 +84,7 @@ def main():
             cat,
             fof_conf,
             mask=mask,
+            objmask=objmask,
         )
 
         eu.ostools.makedirs_fromfile(args.output)
