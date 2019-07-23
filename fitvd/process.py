@@ -27,12 +27,13 @@ from . import fofs
 
 logger = logging.getLogger(__name__)
 
+
 class Processor(object):
     """
     class to process a set of observations.
     """
     def __init__(self, args):
-        self.args=args
+        self.args = args
 
         self._set_rng()
         self._set_blacklist()
@@ -46,15 +47,15 @@ class Processor(object):
         """
         process the requested FoF groups
         """
-        olist=[]
-        elist=[]
-        flist=[]
+        olist = []
+        elist = []
+        flist = []
 
         tm0 = time.time()
         nfofs = self.end-self.start+1
 
-        for fofid in range(self.start,self.end+1):
-            logger.info('processing: %d:%d' % (fofid,self.end))
+        for fofid in range(self.start, self.end+1):
+            logger.info('processing: %d:%d' % (fofid, self.end))
 
             output, epochs_data, fof_data = self._process_fof(fofid)
             flist.append(fof_data)
@@ -63,7 +64,6 @@ class Processor(object):
                 olist.append(output)
                 if epochs_data is not None:
                     elist.append(epochs_data)
-
 
         fof_data = eu.numpy_util.combine_arrlist(flist)
 
@@ -87,10 +87,10 @@ class Processor(object):
         tp = time.time()
         fof_data = self._get_fof_struct()
 
-        w,=np.where(self.fofs['fofid'] == fofid)
+        w, = np.where(self.fofs['fofid'] == fofid)
         fof_size = w.size
         logger.info('FoF size: %d' % fof_size)
-        assert w.size > 0,'no objects found for FoF id %d' % fofid
+        assert w.size > 0, 'no objects found for FoF id %d' % fofid
 
         maxs = self.config['max_fof_size']
         if fof_size > maxs:
@@ -122,12 +122,12 @@ class Processor(object):
             )
             if skip_fit:
                 output['flags'] = procflags.FOF_TOO_LARGE
-                output['flagstr'] = procflags.get_flagname(procflags.FOF_TOO_LARGE)
-
-
-        logger.info('fit result: %s' % get_flagname(output['flags'][0]) )
+                output['flagstr'] = \
+                    procflags.get_flagname(procflags.FOF_TOO_LARGE)
 
         self._add_extra_outputs(indices, output, fofid, self.fofs[w])
+
+        self._print_extra(output)
 
         tp = time.time()-tp
         fof_data['fof_id'] = fofid
@@ -140,11 +140,17 @@ class Processor(object):
 
         return output, epochs_data, fof_data
 
+    def _print_extra(self, output):
+        w, = np.where(output['mask_flags'] > 0)
+        tup = (w.size, get_flagname(output['flags'][0]))
+        m = 'nmasked: %d fit result: %s' % tup
+        logger.info(m)
+
     def _get_fof_struct(self):
-        dt=[
-            ('fof_id','i8'),
-            ('fof_size','i4'),
-            ('fof_time','f4'),
+        dt = [
+            ('fof_id', 'i8'),
+            ('fof_size', 'i4'),
+            ('fof_time', 'f4'),
         ]
         return np.zeros(1, dtype=dt)
 
@@ -155,6 +161,8 @@ class Processor(object):
         return output, epochs_data
 
     def _add_extra_outputs(self, indices, output, fofid, fofs):
+
+        assert output.size == fofs.size
 
         m = self.mb_meds.mlist[0]
         output['id'] = m['id'][indices]
@@ -168,7 +176,7 @@ class Processor(object):
         """
         load the mbobs_list for the input FoF group list
         """
-        mbobs_list=[]
+        mbobs_list = []
         for index in indices:
             mbobs, flags = self._get_mbobs(index)
             if flags != 0:
@@ -180,15 +188,15 @@ class Processor(object):
 
     def _cut_high_maskfrac(self, mbobs):
         new_mbobs = ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs.meta.update(mbobs.meta)
 
         flags = 0
         mf = self.config['max_maskfrac']
-        for band,obslist in enumerate(mbobs):
+        for band, obslist in enumerate(mbobs):
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
 
-            for epoch,obs in enumerate(obslist):
+            for epoch, obs in enumerate(obslist):
                 npix, nmasked = util.get_badpix_frac_sums(obs)
                 maskfrac = nmasked/npix
                 if maskfrac < mf:
@@ -196,7 +204,7 @@ class Processor(object):
                 else:
                     logger.info(
                         'cutting cutout band %d '
-                        'epoch %d for maskfrac: %g' % (band,epoch,maskfrac)
+                        'epoch %d for maskfrac: %g' % (band, epoch, maskfrac)
                     )
 
             if len(new_obslist) == 0:
@@ -209,7 +217,7 @@ class Processor(object):
 
     def _cut_masked_center(self, mbobs):
         new_mbobs = ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs.meta.update(mbobs.meta)
 
         flags = 0
         cconf = self.config['cut_masked_center']
@@ -217,29 +225,29 @@ class Processor(object):
 
         id = mbobs[0][0].meta['id']
 
-        for band,obslist in enumerate(mbobs):
+        for band, obslist in enumerate(mbobs):
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
 
-            for epoch,obs in enumerate(obslist):
+            for epoch, obs in enumerate(obslist):
 
                 shape = obs.image.shape
                 row, col = (np.array(shape)-1.0)/2.0
 
                 row_start = _clip_pixel(row-rad, shape[0])
-                row_end   = _clip_pixel(row+rad, shape[0])
+                row_end = _clip_pixel(row+rad, shape[0])
                 col_start = _clip_pixel(col-rad, shape[1])
-                col_end   = _clip_pixel(col+rad, shape[1])
+                col_end = _clip_pixel(col+rad, shape[1])
 
                 wt_sub = obs.weight[
                     row_start:row_end,
                     col_start:col_end,
                 ]
-                wcen=np.where(wt_sub <= 0.0)
+                wcen = np.where(wt_sub <= 0.0)
                 if wcen[0].size > 0:
                     logger.info(
                         '    id %d skipping band %d '
-                        'cutout %d due masked center' % (id, band,epoch)
+                        'cutout %d due masked center' % (id, band, epoch)
                     )
                 else:
                     new_obslist.append(obs)
@@ -259,16 +267,16 @@ class Processor(object):
         raw number of pixels is above some threshold
         """
         new_mbobs = ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs.meta.update(mbobs.meta)
 
         min_npix = self.config['min_npix']
 
         flags = 0
-        for band,obslist in enumerate(mbobs):
+        for band, obslist in enumerate(mbobs):
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
 
-            for epoch,obs in enumerate(obslist):
+            for epoch, obs in enumerate(obslist):
                 npix, nmasked = util.get_badpix_frac_sums(obs)
                 ngood = npix-nmasked
 
@@ -277,7 +285,8 @@ class Processor(object):
                 else:
                     logger.info(
                         'skipping band %d '
-                        'epoch %d for npix %d < %d' % (band,epoch,ngood,min_npix)
+                        'epoch %d for '
+                        'npix %d < %d' % (band, epoch, ngood, min_npix)
                     )
 
             if len(new_obslist) == 0:
@@ -288,26 +297,26 @@ class Processor(object):
 
         return new_mbobs, flags
 
-
     def _get_mbobs(self, index):
         if self.config['weight_type'] == 'circular-mask':
-            weight_type='weight'
+            weight_type = 'weight'
         else:
-            weight_type=self.config['weight_type']
+            weight_type = self.config['weight_type']
 
-        mbobs=self.mb_meds.get_mbobs(
+        mbobs = self.mb_meds.get_mbobs(
             index,
             weight_type=weight_type,
         )
 
         if len(mbobs) < self.mb_meds.nband:
             return None, procflags.NO_DATA
+
         for obslist in mbobs:
-            if len(obslist)==0:
+            if len(obslist) == 0:
                 return None, procflags.NO_DATA
 
         if self.config['skip_first_epoch']:
-            mbobs, flags =self._remove_first_epoch(mbobs)
+            mbobs, flags = self._remove_first_epoch(mbobs)
             if flags != 0:
                 return None, flags
 
@@ -328,7 +337,10 @@ class Processor(object):
                 return None, flags
 
         if self.config['image_flagnames_to_mask'] is not None:
-            mbobs, flags = util.zero_bitmask_in_weight(mbobs, self.config['image_flagvals_to_mask'])
+            mbobs, flags = util.zero_bitmask_in_weight(
+                mbobs,
+                self.config['image_flagvals_to_mask'],
+            )
             if flags != 0:
                 return None, flags
 
@@ -357,31 +369,36 @@ class Processor(object):
                 return None, flags
 
         if 'flux' in self.config['parspace']:
-            mname=self.config['mof']['model']
+            mname = self.config['mof']['model']
             name = '%s_pars' % mname
-            mbobs.meta['input_model_pars'] = self.model_pars[name][index].copy()
+            mbobs.meta['input_model_pars'] = \
+                self.model_pars[name][index].copy()
             mbobs.meta['input_flags'] = self.model_pars['flags'][index].copy()
 
-        for band,obslist in enumerate(mbobs):
-            m=self.mb_meds.mlist[band]
+        if hasattr(self, 'offsets'):
+            self._add_offsets(mbobs, index)
 
-            if hasattr(self,'offsets'):
-                if len(mbobs)==1:
-                    voffset = self.offsets['voffset'][index]
-                    uoffset = self.offsets['uoffset'][index]
-                else:
-                    voffset = self.offsets['voffset'][index, band]
-                    uoffset = self.offsets['uoffset'][index, band]
+        self._add_meta(mbobs, index)
 
-                for obs in obslist:
-                    jac = obs.jacobian
-                    row,col = jac.get_rowcol(voffset, uoffset)
-                    jac.set_cen(row=row, col=col)
-                    obs.set_jacobian(jac)
+        if self.config['parspace'] == 'ngmix':
+            self._rescale_images_for_ngmix(mbobs)
 
-            scale = obslist[0].jacobian.scale
+        return mbobs, 0
 
-            meta={'magzp_ref': self.magzp_refs[band]}
+    def _rescale_images_for_ngmix(mbobs):
+        for band, obslist in enumerate(mbobs):
+            # fudge for ngmix working in surface brightness
+            for obs in obslist:
+                pixel_scale2 = obs.jacobian.get_scale()**2
+                pixel_scale4 = pixel_scale2*pixel_scale2
+                obs.image *= 1/pixel_scale2
+                obs.weight *= pixel_scale4
+
+    def _add_meta(self, mbobs, index):
+        for band, obslist in enumerate(mbobs):
+            m = self.mb_meds.mlist[band]
+
+            meta = {'magzp_ref': self.magzp_refs[band]}
 
             radcol = self.config['radius_column']
             cat = m.get_cat()
@@ -391,19 +408,25 @@ class Processor(object):
                 if 'arcsec' not in radcol:
                     scale = mbobs[0][0].jacobian.get_scale()
                     rad = rad*scale
-                    meta['Tsky'] = 2* (rad*0.5)**2
+                    meta['Tsky'] = 2*(rad*0.5)**2
 
             obslist.meta.update(meta)
 
-            # fudge for ngmix working in surface brightness
-            if self.config['parspace']=='ngmix':
-                for obs in obslist:
-                    pixel_scale2 = obs.jacobian.get_scale()**2
-                    pixel_scale4 = pixel_scale2*pixel_scale2
-                    obs.image *= 1/pixel_scale2
-                    obs.weight *= pixel_scale4
+    def _add_offsets(self, mbobs, index):
+        for band, obslist in enumerate(mbobs):
 
-        return mbobs, 0
+            if len(mbobs) == 1:
+                voffset = self.offsets['voffset'][index]
+                uoffset = self.offsets['uoffset'][index]
+            else:
+                voffset = self.offsets['voffset'][index, band]
+                uoffset = self.offsets['uoffset'][index, band]
+
+            for obs in obslist:
+                jac = obs.jacobian
+                row, col = jac.get_rowcol(voffset, uoffset)
+                jac.set_cen(row=row, col=col)
+                obs.set_jacobian(jac)
 
     def _remove_first_epoch(self, mbobs):
         """
@@ -417,7 +440,7 @@ class Processor(object):
         for obslist in mbobs:
 
             logging.debug('starting nepoch: %d' % len(obslist))
-            if len(obslist)==1:
+            if len(obslist) == 1:
                 return None, procflags.NO_DATA
 
             new_obslist = ngmix.ObsList()
@@ -439,22 +462,22 @@ class Processor(object):
         logging.debug('rejecting outliers')
 
         new_mbobs = ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs.meta.update(mbobs.meta)
 
+        for band, obslist in enumerate(mbobs):
 
-        for band,obslist in enumerate(mbobs):
-
-            imlist=[]
+            imlist = []
             wtlist = []
             for obs in obslist:
                 imlist.append(obs.image)
                 wtlist.append(obs.weight)
 
-            nreject=meds.reject_outliers(imlist,wtlist)
+            nreject = meds.reject_outliers(imlist, wtlist)
             if nreject > 0:
-                id=obslist[0].meta['id']
+                id = obslist[0].meta['id']
                 logger.info(
-                    '    id %d band %d rejected %d outlier pixels' % (id,band,nreject)
+                    '    id %d band %d rejected %d '
+                    'outlier pixels' % (id, band, nreject)
                 )
 
                 new_obslist = ngmix.ObsList()
@@ -463,8 +486,8 @@ class Processor(object):
                     # this will force an update of the pixels list
                     try:
                         obs.update_pixels()
-                        new_obslist.append( obs )
-                    except ngmix.GMixFatalError as err:
+                        new_obslist.append(obs)
+                    except ngmix.GMixFatalError:
                         # all pixels are masked
                         pass
             else:
@@ -480,15 +503,15 @@ class Processor(object):
         return new_mbobs, 0
 
     def _sample_fake(self, conf):
-        if isinstance(conf,dict):
-            if conf['type']=='uniform':
-                rng=conf['range']
+        if isinstance(conf, dict):
+            if conf['type'] == 'uniform':
+                rng = conf['range']
                 val = self.rng.uniform(
                     low=rng[0],
                     high=rng[1],
                 )
-            elif conf['type']=='log-uniform':
-                rng=conf['range']
+            elif conf['type'] == 'log-uniform':
+                rng = conf['range']
                 logrng = [np.log10(rng[0]), np.log10(rng[1])]
                 logvals = self.rng.uniform(
                     low=logrng[0],
@@ -497,11 +520,9 @@ class Processor(object):
                 val = 10.0**logvals
 
         else:
-            val=conf
+            val = conf
 
         return val
-
-
 
     def _inject_fake_objects(self, mbobs):
         """
@@ -509,20 +530,20 @@ class Processor(object):
         """
         import galsim
 
-        iconf=self.config['inject']
+        iconf = self.config['inject']
 
-        model_name=iconf['model']
+        model_name = iconf['model']
 
         flux = self._sample_fake(iconf['flux'])
         hlr = self._sample_fake(iconf['hlr'])
 
-        if model_name=='exp':
+        if model_name == 'exp':
             model0 = galsim.Exponential(
                 half_light_radius=hlr,
                 flux=flux,
             )
 
-        elif model_name=='bdf':
+        elif model_name == 'bdf':
 
             fracdev = self._sample_fake(iconf['fracdev'])
 
@@ -543,10 +564,10 @@ class Processor(object):
             psf_model = galsim.Gaussian(
                 fwhm=iconf['psf']['fwhm'],
             )
-            method='fft'
+            method = 'fft'
         else:
-            psf_model=None
-            method='no_pixel'
+            psf_model = None
+            method = 'no_pixel'
 
         Tfake = ngmix.moments.fwhm_to_T(hlr/0.5)
 
@@ -556,7 +577,7 @@ class Processor(object):
 
                 jac = obs.jacobian
                 ccen = (np.array(obs.image.shape)-1.0)/2.0
-                voffset,uoffset = jac.get_vu(ccen[0], ccen[1])
+                voffset, uoffset = jac.get_vu(ccen[0], ccen[1])
                 model = model0.shift(-uoffset, -voffset)
 
                 gsimage = galsim.Image(
@@ -565,8 +586,6 @@ class Processor(object):
                 )
 
                 if psf_model is None:
-                    #import images
-                    #images.multiview(obs.psf.image/obs.psf.image.max(),nonlinear=0.4)
                     normpsf = obs.psf.image/obs.psf.image.sum()
                     psf_gsimage = galsim.Image(
                         normpsf,
@@ -580,16 +599,13 @@ class Processor(object):
 
                 else:
 
-                    pshape=obs.psf.image.shape
+                    pshape = obs.psf.image.shape
                     psf_gsimage = psf_model.drawImage(
                         nx=pshape[1],
                         ny=pshape[0],
                         wcs=obs.psf.jacobian.get_galsim_wcs(),
                     )
 
-                    #psf_to_conv = galsim.InterpolatedImage(
-                    #    psf_gsimage,
-                    #)
                     psf_to_conv = psf_model
                     obs.psf.image = psf_gsimage.array
 
@@ -615,7 +631,6 @@ class Processor(object):
 
                 obs.image = image
 
-
     def _get_best_epochs(self, index, mbobs):
         """
         just keep the best epoch if there are more than one
@@ -623,22 +638,22 @@ class Processor(object):
         this is good when using coadds and more than one epoch
         means overlap
         """
-        new_mbobs=ngmix.MultiBandObsList()
+        new_mbobs = ngmix.MultiBandObsList()
         new_mbobs.meta.update(mbobs.meta)
 
-        for band,obslist in enumerate(mbobs):
-            nepoch=len(obslist)
+        for band, obslist in enumerate(mbobs):
+            nepoch = len(obslist)
             if nepoch > 1:
 
-                mess='    obj %d band %d keeping best of %d epochs'
-                logger.debug(mess % (index, band,nepoch))
+                mess = '    obj %d band %d keeping best of %d epochs'
+                logger.debug(mess % (index, band, nepoch))
 
-                wts=np.array([ obs.weight.sum() for obs in obslist])
+                wts = np.array([obs.weight.sum() for obs in obslist])
                 logger.debug('    weights: %s' % str(wts))
-                ibest=wts.argmax()
+                ibest = wts.argmax()
                 keep_obs = obslist[ibest]
 
-                new_obslist=ngmix.ObsList()
+                new_obslist = ngmix.ObsList()
                 new_obslist.meta.update(obslist.meta)
                 new_obslist.append(keep_obs)
             else:
@@ -649,10 +664,10 @@ class Processor(object):
 
     def _extract_radius(self, band, obslist, index):
         radcol = self.config['radius_column']
-        m=self.mb_meds.mlist[band]
-        cat=m.get_cat()
+        m = self.mb_meds.mlist[band]
+        cat = m.get_cat()
 
-        rad=None
+        rad = None
         if radcol in cat.dtype.names:
             rad = m[radcol][index]*3.0
             if 'arcsec' not in radcol:
@@ -673,39 +688,37 @@ class Processor(object):
         min_rad = min_size/2.0
         max_rad = max_size/2.0
 
-        new_mbobs=ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update(mbobs.meta)
 
         # make sure at least one has it
-        radone=None
-        for band, obslist in  enumerate(mbobs):
+        radone = None
+        for band, obslist in enumerate(mbobs):
             radone = self._extract_radius(band, obslist, index)
             if radone is not None:
                 break
 
         assert radone is not None, \
-            'at least one band should have radius_column "%s"' % radcol
+            'at least one band should have radius_column "%s"' % radone
 
-        for band,obslist in enumerate(mbobs):
-
-            m=self.mb_meds.mlist[band]
+        for band, obslist in enumerate(mbobs):
 
             rad = self._extract_radius(band, obslist, index)
             if rad is None:
                 rad = radone
 
-            new_obslist=ngmix.ObsList()
-            new_obslist.meta.update( obslist.meta )
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
             for obs in obslist:
-                imshape=obs.image.shape
+                imshape = obs.image.shape
                 if imshape[0] > min_size:
 
                     meta = obs.meta
                     jac = obs.jacobian
                     cen = jac.get_cen()
-                    rowpix=int(round(cen[0]))
-                    colpix=int(round(cen[1]))
-
+                    rowpix = int(round(cen[0]))
+                    colpix = int(round(cen[1]))
 
                     scale = jac.scale
                     radpix = rad/scale
@@ -719,9 +732,9 @@ class Processor(object):
                     radpix = int(radpix)-1
 
                     row_start = rowpix-radpix
-                    row_end   = rowpix+radpix+1
+                    row_end = rowpix+radpix+1
                     col_start = colpix-radpix
-                    col_end   = colpix+radpix+1
+                    col_end = colpix+radpix+1
 
                     if row_start < 0:
                         row_start = 0
@@ -732,7 +745,6 @@ class Processor(object):
                     if col_end > imshape[1]:
                         col_end = imshape[1]
 
-
                     subim = obs.image[
                         row_start:row_end,
                         col_start:col_end,
@@ -741,7 +753,8 @@ class Processor(object):
                         row_start:row_end,
                         col_start:col_end,
                     ]
-                    logger.debug('%s -> %s' % ( str(obs.image.shape),str(subim.shape)))
+                    ttup = str(obs.image.shape), str(subim.shape)
+                    logger.debug('%s -> %s' % ttup)
 
                     cen = (cen[0] - row_start, cen[1] - col_start)
                     jac.set_cen(row=cen[0], col=cen[1])
@@ -757,7 +770,7 @@ class Processor(object):
                             meta=obs.meta,
                             psf=obs.psf,
                         )
-                    except ngmix.GMixFatalError as err:
+                    except ngmix.GMixFatalError:
                         new_obs = None
                 else:
                     new_obs = obs
@@ -774,8 +787,6 @@ class Processor(object):
 
         return new_mbobs, 0
 
-
-
     def _set_weight(self, mbobs, index):
         """
         set the weight
@@ -784,44 +795,43 @@ class Processor(object):
         we add quadratically with a fake psf fwhm of 1.5 arcsec
         """
 
-
         if self.config['weight_type'] in ('weight', 'uberseg'):
             return mbobs, 0
 
         assert self.config['weight_type'] in ('circular-mask',)
 
         # extra space around the object
-        fwhm=1.5
-        sigma=fwhm/2.35
-        exrad=3*sigma
+        fwhm = 1.5
+        sigma = fwhm/2.35
+        exrad = 3*sigma
 
         # not all meds files will have the radius column
         radcol = self.config['radius_column']
         radlist = []
-        for band,obslist in enumerate(mbobs):
-            m=self.mb_meds.mlist[band]
+        for band, obslist in enumerate(mbobs):
+            m = self.mb_meds.mlist[band]
             cat = m.get_cat()
             if radcol in cat.dtype.names:
                 rad = cat[radcol][index]
                 if 'arcsec' not in radcol:
-                    scale = m.get_obs(0,0).jacobian.scale
+                    scale = m.get_obs(0, 0).jacobian.scale
                     rad = rad*scale
-                radlist.append( rad )
+                radlist.append(rad)
 
-        assert len(radlist) > 0,'expected radius in one meds at least'
+        assert len(radlist) > 0, 'expected radius in one meds at least'
         radius_arcsec = max(radlist)
         radius_arcsec = np.sqrt(radius_arcsec**2 + exrad**2)
 
         new_mbobs = ngmix.MultiBandObsList()
-        new_mbobs.meta.update( mbobs.meta )
+        new_mbobs.meta.update(mbobs.meta)
 
-        for band,obslist in enumerate(mbobs):
+        for band, obslist in enumerate(mbobs):
 
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
 
-            for epoch,obs in enumerate(obslist):
-                imshape=obs.image.shape
+            for epoch, obs in enumerate(obslist):
+                imshape = obs.image.shape
                 jac = obs.jacobian
                 scale = jac.scale
                 rad_pix = radius_arcsec/scale
@@ -835,7 +845,7 @@ class Processor(object):
                 rows = rows.astype('f4') - cen[0]
                 cols = cols.astype('f4') - cen[1]
                 rad2 = rows**2 + cols**2
-                w=np.where(rad2 > rad_pix2)
+                w = np.where(rad2 > rad_pix2)
 
                 twt = obs.weight.copy()
 
@@ -847,36 +857,41 @@ class Processor(object):
                     obs.weight = twt
                     new_obslist.append(obs)
                 else:
-                    mess='skipping band %d epoch %d for npix %d < %d'
-                    mess = mess % (band,epoch,wgood[0].size,
+                    mess = 'skipping band %d epoch %d for npix %d < %d'
+                    mess = mess % (band, epoch, wgood[0].size,
                                    self.config['min_npix'])
                     logger.info(mess)
 
-            if len(new_obslist)==0:
+            if len(new_obslist) == 0:
                 return None, procflags.TOO_FEW_PIXELS
 
-            new_mbobs.append( new_obslist )
+            new_mbobs.append(new_obslist)
 
         return new_mbobs, 0
 
     def _doplots(self, fofid, mbobs_list):
-        plt=vis.view_mbobs_list(fofid, mbobs_list, show=self.args.show, save=self.args.save)
+        vis.view_mbobs_list(
+            fofid,
+            mbobs_list,
+            show=self.args.show,
+            save=self.args.save,
+        )
 
     def _doplots_compare_model(self, fofid, output, mbobs_list):
-        args=self.args
+        args = self.args
         try:
-            mof_fitter=self.fitter.get_mof_fitter()
+            mof_fitter = self.fitter.get_mof_fitter()
             if mof_fitter is not None:
-                res=mof_fitter.get_result()
-                if res['flags']==0:
+                res = mof_fitter.get_result()
+                if res['flags'] == 0:
                     vis.compare_models(mbobs_list, mof_fitter, fofid, output,
                                        show=args.show, save=args.save)
         except RuntimeError:
             logger.info('could not render model')
 
         if self.args.show:
-            if 'q'==input('hit a key (q to quit): '):
-                stop
+            if 'q' == input('hit a key (q to quit): '):
+                raise RuntimeError('stopping')
 
     def _write_output(self, output, epochs_data, fof_data):
         """
@@ -884,7 +899,7 @@ class Processor(object):
         """
         logger.info('writing output: %s' % self.args.output)
         eu.ostools.makedirs_fromfile(self.args.output)
-        with fitsio.FITS(self.args.output,'rw',clobber=True) as fits:
+        with fitsio.FITS(self.args.output, 'rw', clobber=True) as fits:
             fits.write(output, extname='model_fits')
             if epochs_data is not None:
                 fits.write(epochs_data, extname='epochs_data')
@@ -912,9 +927,9 @@ class Processor(object):
             self.config = yaml.load(fobj)
 
         self.config['skip_first_epoch'] = \
-            self.config.get('skip_first_epoch',False)
+            self.config.get('skip_first_epoch', False)
         self.config['image_flagnames_to_mask'] = \
-            self.config.get('image_flagnames_to_mask',None)
+            self.config.get('image_flagnames_to_mask', None)
 
         self.config['max_fof_size'] = \
             self.config.get('max_fof_size', np.inf)
@@ -923,8 +938,12 @@ class Processor(object):
             self.config['image_flagvals_to_mask'] = desbits.get_flagvals(
                 self.config['image_flagnames_to_mask']
             )
-            logger.info('will mask: %s' % repr(self.config['image_flagnames_to_mask']))
-            logger.info('combined val: %d' % (self.config['image_flagvals_to_mask']))
+            logger.info(
+                'will mask: %s' % repr(self.config['image_flagnames_to_mask']),
+            )
+            logger.info(
+                'combined val: %d' % (self.config['image_flagvals_to_mask']),
+            )
 
     def _set_fitter(self):
         """
@@ -932,7 +951,8 @@ class Processor(object):
         """
 
         c = self.config
-        c['mof']['use_input_guesses'] = c['mof'].get('use_input_guesses', False)
+        c['mof']['use_input_guesses'] = \
+            c['mof'].get('use_input_guesses', False)
         parspace = self.config['parspace']
 
         kw = {}
@@ -955,14 +975,14 @@ class Processor(object):
             if c['mof']['use_input_guesses']:
                 kw['guesses'] = self.model_pars
 
-        if parspace=='ngmix':
+        if parspace == 'ngmix':
             self.fitter = fitting.MOFFitter(
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
                 **kw
             )
-        elif parspace=='galsim':
+        elif parspace == 'galsim':
             self.fitter = fitting.MOFFitterGS(
                 self.config,
                 self.mb_meds.nband,
@@ -977,7 +997,7 @@ class Processor(object):
                 **kw
             )
 
-        elif parspace=='galsim-flux':
+        elif parspace == 'galsim-flux':
             self.fitter = fitting.MOFFluxFitterGS(
                 self.config,
                 self.mb_meds.nband,
@@ -1009,8 +1029,8 @@ class Processor(object):
         nfofs = self.fofs['fofid'].max()+1
         assert nfofs == np.unique(self.fofs['fofid']).size
 
-        self.start=self.args.start
-        self.end=self.args.end
+        self.start = self.args.start
+        self.end = self.args.end
 
         if self.start is None:
             self.start = 0
@@ -1018,17 +1038,17 @@ class Processor(object):
         if self.end is None:
             self.end = nfofs-1
 
-        logger.info('processing fof range: %d:%d' % (self.start,self.end))
+        logger.info('processing fof range: %d:%d' % (self.start, self.end))
         if self.start < 0 or self.end >= nfofs:
-            mess='FoF range: [%d,%d] out of bounds [%d,%d]'
-            mess = mess % (self.start,self.end,0,nfofs-1)
+            mess = 'FoF range: [%d,%d] out of bounds [%d,%d]'
+            mess = mess % (self.start, self.end, 0, nfofs-1)
             raise ValueError(mess)
 
     def _load_meds_files(self):
         """
         load all MEDS files
         """
-        mlist=[]
+        mlist = []
         for f in self.args.meds:
             logger.info('loading meds: %s' % f)
             m = ngmix.medsreaders.NGMixMEDS(f)
@@ -1042,27 +1062,23 @@ class Processor(object):
 
         self.magzp_refs = []
         for m in self.mb_meds.mlist:
-            meta=m.get_meta()
-            #if 'magzp_ref' not in meta.dtype.names:
-            #    logger.info('no magzp ref set, assuming 30.0')
-            #    magzp_ref=30.0
-            #else:
-            #    magzp_ref = meta['magzp_ref'][0]
+            meta = m.get_meta()
             magzp_ref = meta['magzp_ref'][0]
             self.magzp_refs.append(magzp_ref)
 
         if self.args.offsets is not None:
             logger.info('reading offsets: %s' % self.args.offsets)
-            self.offsets=fitsio.read(self.args.offsets)
+            self.offsets = fitsio.read(self.args.offsets)
 
-            s=self.offsets['voffset'].shape
-            if len(s)==1:
-                nband=1
+            s = self.offsets['voffset'].shape
+            if len(s) == 1:
+                nband = 1
             else:
                 nband = s[1]
 
-            assert nband==self.mb_meds.nband, \
-                'offset nbands does not match: %d vs %d' % (nband,self.mb_meds.nband)
+            assert nband == self.mb_meds.nband, \
+                ('offset nbands does '
+                 'not match: %d vs %d' % (nband, self.mb_meds.nband))
 
             mo, mmeds = eu.numpy_util.match(
                 self.offsets['id'],
@@ -1073,12 +1089,11 @@ class Processor(object):
 
             self.offsets = self.offsets[mo]
 
+
 def _clip_pixel(pixel, npix):
-    pixel=int(pixel)
+    pixel = int(pixel)
     if pixel < 0:
-        pixel=0
+        pixel = 0
     if pixel > (npix-1):
         pixel = (npix-1)
     return pixel
-
-
