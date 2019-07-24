@@ -12,7 +12,7 @@ import esutil as eu
 from .pbar import prange
 
 
-def get_fofs(cat, fof_conf, mask=None):
+def get_fofs(cat, fof_conf, mask=None, objmask=None):
     """
     generate FoF groups
 
@@ -28,10 +28,7 @@ def get_fofs(cat, fof_conf, mask=None):
         of a group with other objects
     """
 
-    if mask is not None:
-        is_masked = mask.is_masked(cat['ra'], cat['dec'])
-    else:
-        is_masked = None
+    is_masked = _get_is_masked(cat, mask, objmask)
 
     mn = MEDSNbrs(
         cat,
@@ -47,6 +44,16 @@ def get_fofs(cat, fof_conf, mask=None):
     add_dt = [('mask_flags', 'i4')]
     fofs = eu.numpy_util.add_fields(fofs, add_dt)
 
+    _add_mask_flags(fofs, cat, mask, objmask)
+
+    return nbr_data, fofs
+
+
+def _add_mask_flags(fofs, cat, mask, objmask):
+    """
+    add mask flags to the input fofs
+    """
+
     if mask is not None:
         mcat, mfofs = eu.numpy_util.match(cat['number'], fofs['number'])
         assert mcat.size == cat.size
@@ -55,10 +62,30 @@ def get_fofs(cat, fof_conf, mask=None):
             cat['dec'][mcat],
         )
 
-    return nbr_data, fofs
+    if objmask is not None:
+        fofs['mask_flags'][mfofs] |= objmask.get_mask_flags(cat['id'][mcat])
 
 
-def make_singleton_fofs(cat):
+def _get_is_masked(cat, mask, objmask):
+    """
+    check if the objects are masked
+    """
+    if mask is not None:
+        is_masked = mask.is_masked(cat['ra'], cat['dec'])
+    else:
+        is_masked = None
+
+    if objmask is not None:
+        oim = objmask.is_masked(cat['id'])
+        if is_masked is not None:
+            is_masked |= oim
+        else:
+            is_masked = oim
+
+    return is_masked
+
+
+def make_singleton_fofs(cat, mask=None, objmask=None):
     """
     generate a fofs file, one object per groups
 
@@ -72,10 +99,13 @@ def make_singleton_fofs(cat):
     Fof group array with fields, entries 'fofid', 'number'
 
     """
-    dt = [('fofid', 'i8'), ('number', 'i8')]
+    dt = [('mask_flags','i4'), ('fofid', 'i8'), ('number', 'i8')]
     fofs = np.zeros(cat.size, dtype=dt)
     fofs['fofid'] = np.arange(fofs.size)
     fofs['number'] = cat['number']
+
+    _add_mask_flags(fofs, cat, mask, objmask)
+
     return fofs
 
 
