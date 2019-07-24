@@ -7,7 +7,6 @@ from __future__ import print_function
 import os
 import argparse
 import fitvd
-import desmasks
 import fitsio
 import esutil as eu
 import ngmix.medsreaders
@@ -23,39 +22,13 @@ parser.add_argument('--mask', help='use the mask specified in the file')
 parser.add_argument('--objmask', help='object id based mask')
 parser.add_argument('--bounds', help='use the bounds specified in the file')
 
-def load_mask(args):
-    if args.mask is not None or args.bounds is not None:
-        assert args.bounds is not None and args.mask is not None, \
-            'send both mask and bounds'
-
-        mask = desmasks.TileMask(
-            mask_fname=args.mask,
-            bounds_fname=args.bounds,
-        )
-    else:
-        mask = None
-
-    return mask
-
-
-def load_objmask(args):
-    if args.objmask is not None or args.bounds is not None:
-        assert args.bounds is not None and args.objmask is not None, \
-            'send both objmask and bounds'
-
-        objmask = desmasks.ObjMask(args.objmask)
-    else:
-        objmask = None
-
-    return objmask
-
 
 def main():
     args = parser.parse_args()
     assert 'meds' not in args.output
 
     conf = fitvd.files.read_yaml(args.conf)
-    fof_conf = conf['fofs']
+    fof_conf = conf.get('fofs', None)
 
     print('loading:', args.meds)
 
@@ -63,35 +36,45 @@ def main():
 
     cat = m.get_cat()
 
-    mask = load_mask(args)
-    objmask = load_objmask(args)
+    mask = fitvd.masks.load_mask(mask_file=args.mask, bounds_file=args.bounds)
+    objmask = fitvd.masks.load_objmask(mask_file=args.objmask)
 
     if args.plot_only:
         fofs = fitsio.read(args.output, ext='fofs')
     else:
-        # convert to arcsec
-        radcol = fof_conf['radius_column']
-        if 'arcsec' not in radcol:
-            print('converting radius to arcsec')
-            j = m.get_ngmix_jacobian(0, 0)
+        if fof_conf is None:
+            print('making singleton fofs')
+            fofs = fofs.make_singleton_fofs(
+                cat,
+                mask=mask,
+                objmask=objmask,
+            )
+            nbr_data = None
+        else:
+            # convert to arcsec
+            radcol = fof_conf['radius_column']
+            if 'arcsec' not in radcol:
+                print('converting radius to arcsec')
+                j = m.get_ngmix_jacobian(0, 0)
 
-            scale = j.scale
-            rad = cat[radcol]*scale
-            cat[radcol] = rad
+                scale = j.scale
+                rad = cat[radcol]*scale
+                cat[radcol] = rad
 
-        print('getting fof groups')
-        nbr_data, fofs = fitvd.fofs.get_fofs(
-            cat,
-            fof_conf,
-            mask=mask,
-            objmask=objmask,
-        )
+            print('getting fof groups')
+            nbr_data, fofs = fitvd.fofs.get_fofs(
+                cat,
+                fof_conf,
+                mask=mask,
+                objmask=objmask,
+            )
 
         eu.ostools.makedirs_fromfile(args.output)
         print('writing:', args.output)
         with fitsio.FITS(args.output, 'rw', clobber=True) as fits:
             fits.write(fofs, extname='fofs')
-            fits.write(nbr_data, extname='nbrs')
+            if nbr_data is not None:
+                fits.write(nbr_data, extname='nbrs')
 
     seed = fitvd.util.convert_string_to_seed(os.path.basename(args.meds))
     fitvd.fofs.plot_fofs(
