@@ -41,7 +41,7 @@ def get_fofs(cat, fof_conf, mask=None, objmask=None):
     nf = NbrsFoF(nbr_data)
     fofs = nf.get_fofs()
 
-    add_dt = [('mask_flags', 'i4')]
+    add_dt = [('ra', 'f8'), ('dec', 'f8'), ('mask_flags', 'i4')]
     fofs = eu.numpy_util.add_fields(fofs, add_dt)
 
     _add_mask_flags(fofs, cat, mask, objmask)
@@ -57,6 +57,9 @@ def _add_mask_flags(fofs, cat, mask, objmask):
     if mask is not None:
         mcat, mfofs = eu.numpy_util.match(cat['number'], fofs['number'])
         assert mcat.size == cat.size
+        fofs['ra'][mfofs] = cat['ra'][mcat]
+        fofs['dec'][mfofs] = cat['dec'][mcat]
+
         fofs['mask_flags'][mfofs] = mask.get_mask_flags(
             cat['ra'][mcat],
             cat['dec'][mcat],
@@ -99,7 +102,13 @@ def make_singleton_fofs(cat, mask=None, objmask=None):
     Fof group array with fields, entries 'fofid', 'number'
 
     """
-    dt = [('mask_flags','i4'), ('fofid', 'i8'), ('number', 'i8')]
+    dt = [
+        ('fofid', 'i8'),
+        ('number', 'i8'),
+        ('mask_flags', 'i4'),
+        ('ra', 'f8'),
+        ('dec', 'f8'),
+    ]
     fofs = np.zeros(cat.size, dtype=dt)
     fofs['fofid'] = np.arange(fofs.size)
     fofs['number'] = cat['number']
