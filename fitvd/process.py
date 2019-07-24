@@ -379,7 +379,7 @@ class Processor(object):
 
         return mbobs, 0
 
-    def _rescale_images_for_ngmix(mbobs):
+    def _rescale_images_for_ngmix(self, mbobs):
         for band, obslist in enumerate(mbobs):
             # fudge for ngmix working in surface brightness
             for obs in obslist:
