@@ -188,7 +188,11 @@ class FoFBatchBase(dict):
             mask_text = '--mask=%s --bounds=%s' % (mask_file, bounds_file)
 
             if len(video_bands) != 0:
-                objmask_file = desmasks.files.get_objmask_file(tilename)
+                objmask_file = _get_objmask_file(
+                    self.run_conf,
+                    self.tile_conf,
+                    tilename,
+                )
                 mask_text = '%s --objmask=%s' % (mask_text, objmask_file)
         else:
             mask_text = ''
@@ -877,3 +881,30 @@ def _get_meds_file_info(run_conf, tile_conf):
         fi[tilename_full] = meds_list
 
     return fi
+
+
+def _get_objmask_file(run_conf, tile_conf, tilename_full):
+    """
+    returns a dict keyed by tilename, holding a list of
+    meds files for each
+    """
+    fi = {}
+
+    video_bands = run_conf.get('video_bands', [])
+    assert len(video_bands) != 0, 'need video bands to get objmask'
+
+    if 'DES' in tilename_full:
+        tilename = tilename_full.split('_')[0]
+    else:
+        tilename = tilename_full
+
+    meds_fname = tile_conf['des_pattern'] % dict(
+        tilename=tilename,
+        tilename_full=tilename_full,
+        band='J',
+    )
+
+    d = os.path.dirname(meds_fname)
+    fname = '%s_comb_meds-VIDEO_DEEPmaskedobj.txt' % tilename_full
+
+    return os.path.join(d, fname)
