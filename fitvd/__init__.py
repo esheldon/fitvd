@@ -1,6 +1,7 @@
 __version__='v0.9.4'
 
 from . import fofs
+from . import masks
 from . import fitting
 from . import process
 from . import split
