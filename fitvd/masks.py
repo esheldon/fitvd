@@ -9,6 +9,8 @@ def load_mask(*, mask_file=None, bounds_file=None):
         assert bounds_file is not None and mask_file is not None, \
             'send both mask and bounds'
 
+        print('loading mask:', mask_file)
+        print('loading bounds:', bounds_file)
         mask = desmasks.TileMask(
             mask_fname=mask_file,
             bounds_fname=bounds_file,
@@ -24,6 +26,7 @@ def load_objmask(*, mask_file=None):
     load an object-level mask
     """
     if mask_file is not None:
+        print('loading objmask:', mask_file)
         objmask = desmasks.ObjMask(mask_file)
     else:
         objmask = None
