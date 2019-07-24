@@ -1,10 +1,5 @@
 """
-TODO:
-
-    - tweak group finding
-    - deal with fact that des is coadd only and vista has no coadd
-    - deal with masking (some vista are all zeros)
-
+processing framework
 """
 import numpy as np
 import logging
@@ -23,7 +18,6 @@ from . import util
 from . import desbits
 from . import procflags
 from .procflags import get_flagname
-from . import fofs
 
 logger = logging.getLogger(__name__)
 
