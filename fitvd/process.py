@@ -119,7 +119,12 @@ class Processor(object):
                 output['flagstr'] = \
                     procflags.get_flagname(procflags.FOF_TOO_LARGE)
 
-        self._add_extra_outputs(indices, output, fofid, self.fofs[w])
+        output = self._add_extra_outputs(
+            indices,
+            output,
+            fofid,
+            self.fofs[w],
+        )
 
         self._print_extra(output)
 
@@ -165,6 +170,8 @@ class Processor(object):
         output['fof_id'] = fofid
         output['fof_size'] = output.size
         output['mask_flags'] = fofs['mask_flags']
+
+        return output
 
     def _get_fof_mbobs_list(self, indices):
         """
