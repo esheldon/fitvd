@@ -43,10 +43,11 @@ class ShellCollateBatch(dict):
         write the script to collate the files
         """
 
-        if 'fofs' not in self.fit_conf:
-            meds_text = '--meds=%s' % self.meds_info[tilename][0]
-        else:
-            meds_text = ''
+        # if 'fofs' not in self.fit_conf:
+        #     meds_text = '--meds=%s' % self.meds_info[tilename][0]
+        # else:
+        #     meds_text = ''
+        meds_text = ''
 
         text = _collate_script_template % {
             'run': self['run'],
@@ -104,10 +105,11 @@ class WQCollateBatch(ShellCollateBatch):
 
         job_name = 'collate-%s-%s' % (self['run'], tilename)
 
-        if 'fofs' not in self.fit_conf:
-            meds_text = '--meds=%s' % self.meds_info[tilename][0]
-        else:
-            meds_text = ''
+        # if 'fofs' not in self.fit_conf:
+        #     meds_text = '--meds=%s' % self.meds_info[tilename][0]
+        # else:
+        #     meds_text = ''
+        meds_text = ''
 
         text = _collate_wq_template % {
             'run': self['run'],
@@ -145,7 +147,7 @@ class FoFBatchBase(dict):
             )
         )
         self.fit_conf = files.read_yaml(self['fit_config'])
-        assert 'fofs' in self.fit_conf, 'fofs entry must be in fit config'
+        # assert 'fofs' in self.fit_conf, 'fofs entry must be in fit config'
 
         self['run'] = files.extract_run_from_config(self.args.run_config)
         self.meds_info = _get_meds_file_info(self.run_conf, self.tile_conf)
@@ -365,11 +367,15 @@ class ShellBatch(dict):
         d['meds_files'] = meds_files
         d['logfile'] = os.path.abspath(log_file)
 
+        fof_file = files.get_fof_file(self['run'], tilename)
+        d['fofs_text'] = '--fofs=%s' % fof_file
+        """
         if 'fofs' in self.fit_conf:
             fof_file = files.get_fof_file(self['run'], tilename)
             d['fofs_text'] = '--fofs=%s' % fof_file
         else:
             d['fofs_text'] = ''
+        """
 
         if 'model_pars_run' in self:
             pars_file = files.get_collated_file(
@@ -413,6 +419,9 @@ class ShellBatch(dict):
         self.meds_info = _get_meds_file_info(self, self.tile_conf)
 
     def _get_fofs(self, tilename):
+        fof_file = files.get_fof_file(self['run'], tilename)
+        nbrs, fofst = files.load_fofs(fof_file)
+        """
         if 'fofs' in self.fit_conf:
             fof_file = files.get_fof_file(self['run'], tilename)
             nbrs, fofst = files.load_fofs(fof_file)
@@ -421,6 +430,7 @@ class ShellBatch(dict):
             m = meds.MEDS(meds_file)
             cat = m.get_cat()
             fofst = fofs.make_singleton_fofs(cat)
+        """
 
         return fofst
 
@@ -628,11 +638,15 @@ class CondorBatch(ShellBatch):
         meds_files = self.meds_info[tilename]
         meds_files = ' '.join(meds_files)
 
+        fof_file = files.get_fof_file(self['run'], tilename)
+        fofs_text = '--fofs=%s' % fof_file
+        """
         if 'fofs' in self.fit_conf:
             fof_file = files.get_fof_file(self['run'], tilename)
             fofs_text = '--fofs=%s' % fof_file
         else:
             fofs_text = ''
+        """
 
         text = _condor_master_template % {
             'meds_files': meds_files,
