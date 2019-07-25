@@ -52,6 +52,9 @@ def main():
 
         print('will write to:',output_file)
 
+        fof_file=files.get_fof_file(run, args.tilename)
+        nbrs,fofst=files.load_fofs(fof_file)
+        """
         if 'fofs' in fit_conf:
             fof_file=files.get_fof_file(run, args.tilename)
             nbrs,fofst=files.load_fofs(fof_file)
@@ -60,6 +63,7 @@ def main():
             m=meds.MEDS(args.meds)
             cat=m.get_cat()
             fofst = fitvd.fofs.make_singleton_fofs(cat)
+        """
 
         fof_splits = split.get_splits_variable(fofst, config['chunksize'], config['threshold'])
         flist=[]
