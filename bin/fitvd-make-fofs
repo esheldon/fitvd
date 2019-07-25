@@ -44,7 +44,7 @@ def main():
     else:
         if fof_conf is None:
             print('making singleton fofs')
-            fofs = fofs.make_singleton_fofs(
+            fofs = fitvd.fofs.make_singleton_fofs(
                 cat,
                 mask=mask,
                 objmask=objmask,
