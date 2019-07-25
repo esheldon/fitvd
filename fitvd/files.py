@@ -262,8 +262,12 @@ def load_fofs(fof_filename):
     """
     logger.info('loading fofs: %s' % fof_filename)
     with fitsio.FITS(fof_filename) as fits:
-        nbrs = fits['nbrs'][:]
         fofs = fits['fofs'][:]
+
+        if 'nbrs' in fits:
+            nbrs = fits['nbrs'][:]
+        else:
+            nbrs = None
 
     return nbrs, fofs
 
