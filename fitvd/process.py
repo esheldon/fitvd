@@ -372,9 +372,9 @@ class Processor(object):
         if 'flux' in self.config['parspace']:
             mname = self.config['mof']['model']
             name = '%s_pars' % mname
-            mbobs.meta['input_model_pars'] = \
-                self.model_pars[name][index].copy()
-            mbobs.meta['input_flags'] = self.model_pars['flags'][index].copy()
+            # mbobs.meta['input_model_pars'] = \
+            #     self.model_data[name][index].copy()
+            # mbobs.meta['input_flags'] = self.model_data['flags'][index].copy()
 
         if hasattr(self, 'offsets'):
             self._add_offsets(mbobs, index)
@@ -971,10 +971,10 @@ class Processor(object):
             assert mm.size == model_pars.size, \
                 'some input pars did not match'
 
-            self.model_pars = model_pars[mm]
+            self.model_data = model_pars[mm]
 
             if c['mof']['use_input_guesses']:
-                kw['guesses'] = self.model_pars
+                kw['guesses'] = self.model_data
 
         if parspace == 'ngmix':
             self.fitter = fitting.MOFFitter(
@@ -995,7 +995,7 @@ class Processor(object):
                 self.config,
                 self.mb_meds.nband,
                 self.rng,
-                **kw
+                self.model_data,
             )
 
         elif parspace == 'galsim-flux':

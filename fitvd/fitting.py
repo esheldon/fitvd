@@ -566,12 +566,19 @@ class MOFFitter(FitterBase):
                         tflux = t[n('flux')].clip(min=0.001)
                         t[n('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
 
+                if 'pars' in res:
+                    pname = 'pars'
+                    perr_name = 'pars_err'
+                else:
+                    pname = 'flux'
+                    perr_name = 'flux_err'
+
                 try:
-                    pstr = ' '.join(['%8.3g' % el for el in t[n('pars')]])
-                    estr = ' '.join(['%8.3g' % el for el in t[n('pars_err')]])
+                    pstr = ' '.join(['%8.3g' % el for el in t[n(pname)]])
+                    estr = ' '.join(['%8.3g' % el for el in t[n(perr_name)]])
                 except TypeError:
-                    pstr = '%8.3g' % t[n('pars')]
-                    estr = '%8.3g' % t[n('pars_err')]
+                    pstr = '%8.3g' % t[n(pname)]
+                    estr = '%8.3g' % t[n(perrname)]
 
                 logger.debug('%d pars: %s' % (i, pstr))
                 logger.debug('%d perr: %s' % (i, estr))
@@ -584,8 +591,129 @@ class MOFFluxFitter(MOFFitter):
     take structural parameters from input model pars, just
     fit the flux
     """
+    def __init__(self, conf, nband, rng, model_data):
+
+        super(MOFFitter, self).__init__(conf, nband, rng)
+
+        self.model_data = model_data
+        mname = conf['mof']['model']
+        name = '%s_pars' % mname
+        self.model_pars = model_data[name]
+
+        self._set_mof_fitter_class()
+
+    def go(self, mbobs_list, get_fitter=False, skip_fit=False, **kw):
+        """
+        run the multi object fitter
+
+        parameters
+        ----------
+        mbobs_list: list of MultiBandObsList
+            One for each object.  If it is a simple
+            MultiBandObsList it will be converted
+            to a list
+
+        skip_fit: bool
+            If True, only fit the psfs, skipping the main deblending
+            fit
+
+        returns
+        -------
+        data: ndarray
+            Array with all output fields
+        """
+        if not isinstance(mbobs_list, list):
+            mbobs_list = [mbobs_list]
+
+        mofc = self['mof']
+
+        try:
+            _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            _measure_all_psf_fluxes(mbobs_list)
+
+            epochs_data = self._get_epochs_output(mbobs_list)
+
+            input_pars, input_flags = self._get_pars(mbobs_list)
+
+            fitter = self._mof_fitter_class(
+                mbobs_list,
+                mofc['model'],
+                input_pars,
+                flags=input_flags,
+            )
+            if skip_fit:
+                # we use a and expect the caller to set the flag
+                res = {
+                    'ntry': 0,
+                    'main_flags': -1,
+                    'main_flagstr': 'none',
+                }
+            else:
+                fitter.go()
+
+                res = fitter.get_result()
+
+                res['ntry'] = 1
+                res['nfev'] = -1
+
+                if np.any(res['flags'] != 0):
+                    res['main_flags'] = procflags.OBJ_FAILURE
+                    res['main_flagstr'] = \
+                        procflags.get_flagname(res['main_flags'])
+                else:
+                    res['main_flags'] = 0
+                    res['main_flagstr'] = procflags.get_flagname(0)
+
+        except NoDataError as err:
+            epochs_data = None
+            print(str(err))
+            res = {
+                'ntry': -1,
+                'main_flags': procflags.NO_DATA,
+                'main_flagstr': procflags.get_flagname(procflags.NO_DATA),
+            }
+
+        except BootPSFFailure as err:
+            fitter = None
+            epochs_data = None
+            print(str(err))
+            res = {
+                'ntry': -1,
+                'main_flags': procflags.PSF_FAILURE,
+                'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
+            }
+
+        if res['main_flags'] != 0:
+            reslist = None
+        else:
+            reslist = fitter.get_result_list()
+
+        data = self._get_output(
+            mbobs_list,
+            res,
+            reslist,
+        )
+
+        self._mof_fitter = fitter
+
+        return data, epochs_data
+
+    def _get_pars(self, mbobs_list):
+        idlist = np.array([m[0][0].meta['id'] for m in mbobs_list])
+        minput, mpars = eu.numpy_util.match(self.model_data['id'], idlist)
+
+        assert minput.size == len(idlist)
+
+        flags = self.model_data['flags'][mpars]
+        pars = self.model_pars[mpars, :]
+
+        return pars, flags
+
+    def _get_prior(self, *args):
+        raise ValueError('dont need a prior for MOFFlux fitting')
+
     def _set_guess_func(self):
-        self._guess_func = get_stamp_flux_guesses
+        raise ValueError('dont need a guess func for MOFFlux fitting')
 
     def _set_mof_fitter_class(self):
         self._mof_fitter_class = mof.MOFFlux
@@ -613,7 +741,7 @@ class MOFFluxFitter(MOFFitter):
             ('psf_mag', 'f8', nband),
             ('psf_flux_err', 'f8', nband),
             ('psf_flux_s2n', 'f8', nband),
-            (n('flags'), 'i4'),
+            (n('flags'), 'i4', nband),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
