@@ -699,14 +699,17 @@ class Processor(object):
             if radone is not None:
                 break
 
-        assert radone is not None, \
-            'at least one band should have radius_column "%s"' % radone
+        # assert radone is not None, \
+        #     'at least one band should have radius_column "%s"' % radone
 
         for band, obslist in enumerate(mbobs):
 
             rad = self._extract_radius(band, obslist, index)
             if rad is None:
-                rad = radone
+                if radone is None:
+                    rad = 1.0e9
+                else:
+                    rad = radone
 
             new_obslist = ngmix.ObsList()
             new_obslist.meta.update(obslist.meta)
