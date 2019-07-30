@@ -381,7 +381,7 @@ class Processor(object):
 
         self._add_meta(mbobs, index)
 
-        if self.config['parspace'] == 'ngmix':
+        if 'ngmix' in self.config['parspace']:
             self._rescale_images_for_ngmix(mbobs)
 
         return mbobs, 0

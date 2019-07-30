@@ -474,7 +474,7 @@ class MOFFitter(FitterBase):
         st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
 
         n = self.namer
-        st[n('flags')] = st['flags']
+        st[n('flags')] = procflags.NO_ATTEMPT
 
         noset = [
             'id',
@@ -700,9 +700,9 @@ class MOFFluxFitter(MOFFitter):
 
     def _get_pars(self, mbobs_list):
         idlist = np.array([m[0][0].meta['id'] for m in mbobs_list])
-        minput, mpars = eu.numpy_util.match(self.model_data['id'], idlist)
+        mpars, mobs = eu.numpy_util.match(self.model_data['id'], idlist)
 
-        assert minput.size == len(idlist)
+        assert mobs.size == len(idlist)
 
         flags = self.model_data['flags'][mpars]
         pars = self.model_pars[mpars, :]
