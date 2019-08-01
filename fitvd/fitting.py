@@ -472,6 +472,7 @@ class MOFFitter(FitterBase):
         st = np.zeros(nobj, dtype=dt)
         st['flags'] = procflags.NO_ATTEMPT
         st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
+        st['psf_flux_flags'] = procflags.NO_ATTEMPT
 
         n = self.namer
         st[n('flags')] = procflags.NO_ATTEMPT
@@ -479,7 +480,9 @@ class MOFFitter(FitterBase):
         noset = [
             'id',
             'ra', 'dec',
-            'flags', 'flagstr', n('flags'),
+            'flags', 'flagstr',
+            'psf_flux_flags',
+            n('flags'),
             'fof_id', 'fof_size',
             'mask_flags',
         ]
@@ -512,6 +515,30 @@ class MOFFitter(FitterBase):
         logger.info('ntry: %s nfev: %s' %
                     (main_res['ntry'], main_res.get('nfev', None)))
 
+        for i in range(output.size):
+            t = output[i]
+            mbobs = mbobs_list[i]
+
+            for band, obslist in enumerate(mbobs):
+                meta = obslist.meta
+
+                if nband > 1:
+                    t['psf_flux_flags'][band] = meta['psf_flux_flags']
+                    for name in ('flux', 'flux_err', 'flux_s2n'):
+                        t[pn(name)][band] = meta[pn(name)]
+
+                    tflux = t[pn('flux')][band].clip(min=0.001)
+                    t[pn('mag')][band] = \
+                        meta['magzp_ref']-2.5*np.log10(tflux)
+
+                else:
+                    t['psf_flux_flags'] = meta['psf_flux_flags']
+                    for name in ('flux', 'flux_err', 'flux_s2n'):
+                        t[pn(name)] = meta[pn(name)]
+
+                    tflux = t[pn('flux')].clip(min=0.001)
+                    t[pn('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
+
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
 
@@ -521,6 +548,7 @@ class MOFFitter(FitterBase):
 
                 t['badpix_frac'] = mbobs.meta['badpix_frac']
 
+                """
                 for band, obslist in enumerate(mbobs):
                     meta = obslist.meta
 
@@ -534,13 +562,14 @@ class MOFFitter(FitterBase):
                             meta['magzp_ref']-2.5*np.log10(tflux)
 
                     else:
+                        print('meta:', meta)
                         t['psf_flux_flags'] = meta['psf_flux_flags']
                         for name in ('flux', 'flux_err', 'flux_s2n'):
                             t[pn(name)] = meta[pn(name)]
 
                         tflux = t[pn('flux')].clip(min=0.001)
                         t[pn('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
-
+                """
                 for name, val in res.items():
                     if name == 'nband':
                         continue
@@ -1125,7 +1154,9 @@ def get_stamp_guesses(list_of_obs,
         detobslist = mbo[detband]
         detmeta = detobslist.meta
 
-        T = detmeta['Tsky']
+        T = detmeta.get('Tsky', None)
+        if T is None:
+            T = mbo[0][0].psf.gmix.get_T()*1.2
 
         beg = i*npars_per
 
@@ -1189,7 +1220,13 @@ def get_stamp_guesses(list_of_obs,
         if wgood.size != nband:
             logging.info('fixing bad flux guesses: %s' % format_pars(fluxes))
             if wgood.size == 0:
-                fluxes[:] = rng.uniform(low=100, high=200)
+                for iband, bobs in enumerate(detobslist):
+                    wt = bobs.weight
+                    maxwt = wt.max()
+                    if maxwt <= 0.0:
+                        maxwt = 100.0
+                    psigma = np.sqrt(1.0/maxwt)
+                    fluxes[iband] = rng.uniform(low=psigma, high=5*psigma)
             else:
                 wbad, = np.where(~logic)
                 fac = 1.0 + rng.uniform(low=-0.1, high=0.1, size=wbad.size)
