@@ -521,6 +521,8 @@ class MOFFitter(FitterBase):
 
             for band, obslist in enumerate(mbobs):
                 meta = obslist.meta
+                if 'psf_flux_flags' not in meta:
+                    continue
 
                 if nband > 1:
                     t['psf_flux_flags'][band] = meta['psf_flux_flags']
@@ -1119,8 +1121,8 @@ class AllPSFFluxFitter(object):
             res['flux_s2n'] = res['flux']/res['flux_err']
         else:
             res['flux_s2n'] = -9999.0
-            raise BootPSFFailure('failed to fit psf fluxes for '
-                                 'band %d: %s' % (band, str(res)))
+            # raise BootPSFFailure('failed to fit psf fluxes for '
+            #                      'band %d: %s' % (band, str(res)))
 
         return res
 
@@ -1220,8 +1222,8 @@ def get_stamp_guesses(list_of_obs,
         if wgood.size != nband:
             logging.info('fixing bad flux guesses: %s' % format_pars(fluxes))
             if wgood.size == 0:
-                for iband, bobs in enumerate(detobslist):
-                    wt = bobs.weight
+                for iband, bobs in enumerate(mbo):
+                    wt = bobs[0].weight
                     maxwt = wt.max()
                     if maxwt <= 0.0:
                         maxwt = 100.0
