@@ -242,7 +242,9 @@ class MOFFitter(FitterBase):
         dofit = True
         try:
             _fit_all_psfs(mbobs_list, self['mof']['psf'])
-            _measure_all_psf_fluxes(mbobs_list)
+
+            self._do_measure_all_psf_fluxes(mbobs_list)
+
 
             epochs_data = self._get_epochs_output(mbobs_list)
 
@@ -333,6 +335,9 @@ class MOFFitter(FitterBase):
             self._mof_fitter = fitter
 
         return data, epochs_data
+
+    def _do_measure_all_psf_fluxes(self, mbobs_list):
+        _measure_all_psf_fluxes(mbobs_list)
 
     def get_mof_fitter(self):
         """
@@ -794,6 +799,9 @@ class MOFFitterGS(MOFFitter):
             iobj, band=band, obsnum=obsnum,
         )
 
+    def _do_measure_all_psf_fluxes(self, mbobs_list):
+        _measure_all_psf_fluxes_gs(mbobs_list)
+
     def _set_mof_fitter_class(self):
         if self.get('use_kspace', False):
             self._mof_fitter_class = mof.KGSMOF
@@ -1032,6 +1040,14 @@ def _measure_all_psf_fluxes(mbobs_list):
     fitter.go()
 
 
+def _measure_all_psf_fluxes_gs(mbobs_list):
+    """
+    fit all psfs in the input observations
+    """
+    fitter = AllPSFFluxFitterGS(mbobs_list)
+    fitter.go()
+
+
 class AllPSFFitter(object):
     def __init__(self, mbobs_list, psf_conf):
         self.mbobs_list = mbobs_list
@@ -1112,6 +1128,44 @@ class AllPSFFluxFitter(object):
             do_psf=True,
             normalize_psf=True,
             cen=(0, 0),
+        )
+        fitter.go()
+
+        res = fitter.get_result()
+
+        if res['flags'] == 0 and res['flux_err'] > 0:
+            res['flux_s2n'] = res['flux']/res['flux_err']
+        else:
+            res['flux_s2n'] = -9999.0
+            # raise BootPSFFailure('failed to fit psf fluxes for '
+            #                      'band %d: %s' % (band, str(res)))
+
+        return res
+
+
+class AllPSFFluxFitterGS(object):
+    def __init__(self, mbobs_list):
+        self.mbobs_list = mbobs_list
+
+    def go(self):
+        for mbobs in self.mbobs_list:
+            for band, obslist in enumerate(mbobs):
+
+                if len(obslist) == 0:
+                    raise NoDataError('no data in band %d' % band)
+
+                meta = obslist.meta
+
+                res = self._fit_psf_flux(band, obslist)
+                meta['psf_flux_flags'] = res['flags']
+
+                for n in ('psf_flux', 'psf_flux_err', 'psf_flux_s2n'):
+                    meta[n] = res[n.replace('psf_', '')]
+
+    def _fit_psf_flux(self, band, obslist):
+        fitter = ngmix.galsimfit.GalsimTemplateFluxFitter(
+            obslist,
+            normalize_psf=True,
         )
         fitter.go()
 
@@ -1309,7 +1363,10 @@ def get_stamp_guesses_gs(list_of_obs,
         detobslist = mbo[detband]
         detmeta = detobslist.meta
 
-        T = detmeta['Tsky']
+        T = detmeta.get('Tsky', None)
+        if T is None:
+            T = mbo[0][0].psf.gmix.get_T()*1.2
+
         if T < 1.0e-6:
             T = 1.0e-6
 
@@ -1346,7 +1403,8 @@ def get_stamp_guesses_gs(list_of_obs,
 
             # TODO: if we get psf flux from galsim psf then we can
             # remove the scale squared
-            flux = band_meta['psf_flux']/scale**2
+            # flux = band_meta['psf_flux']/scale**2
+            flux = band_meta['psf_flux']
             if flux < 0.01:
                 flux = 0.01
             flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
