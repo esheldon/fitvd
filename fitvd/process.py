@@ -716,7 +716,7 @@ class Processor(object):
 
             for obs in obslist:
                 imshape = obs.image.shape
-                if imshape[0] > min_size:
+                if imshape[0] > max_size:
 
                     meta = obs.meta
                     jac = obs.jacobian
