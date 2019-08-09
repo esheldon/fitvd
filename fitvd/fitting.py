@@ -461,6 +461,8 @@ class MOFFitter(FitterBase):
             ('gap_flux', 'f8', nbtup),
             ('gap_flux_err', 'f8', nbtup),
             ('gap_mag', 'f8', nbtup),
+            ('spread_model', 'f8'),
+            ('spread_model_flags', 'i4'),
         ]
 
         if 'bd' in self['mof']['model']:
@@ -483,6 +485,8 @@ class MOFFitter(FitterBase):
         st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
         st['psf_flux_flags'] = procflags.NO_ATTEMPT
 
+        st['spread_model_flags'] = procflags.NO_ATTEMPT
+
         n = self.namer
         st[n('flags')] = procflags.NO_ATTEMPT
 
@@ -490,6 +494,7 @@ class MOFFitter(FitterBase):
             'id',
             'ra', 'dec',
             'flags', 'flagstr',
+            'spread_model_flags',
             'psf_flux_flags',
             n('flags'),
             'fof_id', 'fof_size',
@@ -577,6 +582,9 @@ class MOFFitter(FitterBase):
                     t[n('mag')][band] = get_mag(tflux, zp)
 
                     gm = fitter.get_gmix(i, band=band)
+                    for obs in obslist:
+                        obs.set_gmix(gm)
+
                     gap_flux = gm.get_gaussap_flux(fwhm=weight_fwhm)
 
                     if tflux > 0:
@@ -587,6 +595,10 @@ class MOFFitter(FitterBase):
                     t['gap_flux'][band] = gap_flux
                     t['gap_flux_err'][band] = tflux_err*efac
                     t['gap_mag'][band] = get_mag(gap_flux, zp)
+
+                smres = calc_spread_model(mbobs)
+                t['spread_model_flags'] = smres['flags']
+                t['spread_model'] = smres['spread_model']
 
                 if 'pars' in res:
                     pname = 'pars'
@@ -779,6 +791,8 @@ class MOFFluxFitter(MOFFitter):
             ('gap_flux', 'f8', nbtup),
             ('gap_flux_err', 'f8', nbtup),
             ('gap_mag', 'f8', nbtup),
+            ('spread_model', 'f8'),
+            ('spread_model_flags', 'i4'),
         ]
 
         return dt
@@ -1575,3 +1589,179 @@ def get_mag(flux, magzp, min_flux=0.001):
         flux = min_flux
 
     return magzp - 2.5*np.log10(flux)
+
+
+def calc_spread_model(mbobs):
+    """
+    calculate a spread model like quantity using input models
+
+    Parameters
+    ----------
+    mbobs: ngmix.MultiBandObsList
+        obs and psf obs must have gmix set
+    """
+    sm = SpreadModel(mbobs)
+    sm.go()
+    # sm.go_sx()
+    return sm.get_result()
+
+
+class SpreadModel(object):
+    """
+    calculate a spread model like quantity using input models
+
+    Parameters
+    ----------
+    mbobs: ngmix.MultiBandObsList
+        obs and psf obs must have gmix set
+    """
+    def __init__(self, mbobs):
+
+        if not isinstance(mbobs, ngmix.MultiBandObsList):
+            raise ValueError('input must be a MultiBandObsList')
+
+        self.mbobs = mbobs
+
+    def get_result(self):
+        """
+        get the result structure
+        """
+        if not hasattr(self, '_result'):
+            raise RuntimeError('run go() first')
+        return self._result
+
+    def go(self):
+
+        mod_data_sum = 0.0
+        psf_data_sum = 0.0
+        mod_psf_sum = 0.0
+        psf_psf_sum = 0.0
+
+        fwhm = 2.5
+        T = ngmix.moments.fwhm_to_T(fwhm)
+        gmwt = ngmix.GMixModel(
+            [0.0, 0.0, 0.0, 0.0, T, 1.0],
+            'gauss',
+        )
+        for obslist in self.mbobs:
+            for obs in obslist:
+                if not obs.has_gmix():
+                    raise ValueError('all obs must have a gmix set')
+                if not obs.psf.has_gmix():
+                    raise ValueError('all psf obs must have a gmix set')
+
+                # this makes a copy
+                psf_gmix = obs.psf.gmix
+                psf_gmix.set_flux(1.0)
+
+                gm0 = obs.gmix
+                gmix = gm0.convolve(psf_gmix)
+                gmix.set_flux(1.0)
+
+                # ensure psf is centered in the same place
+                row, col = gmix.get_cen()
+                psf_gmix.set_cen(row, col)
+                gmwt.set_cen(row, col)
+
+                jac = obs.jacobian
+                image = obs.image
+                dims = image.shape
+
+                model_im = gmix.make_image(dims, jacobian=jac)
+                pmodel_im = psf_gmix.make_image(dims, jacobian=jac)
+                gmwt_im = gmwt.make_image(dims, jacobian=jac)
+
+                wtim = obs.weight * gmwt_im
+
+                mod_data_sum += (model_im*wtim*image).sum()
+                psf_data_sum += (pmodel_im*wtim*image).sum()
+
+                mod_psf_sum += (model_im*wtim*pmodel_im).sum()
+                psf_psf_sum += (pmodel_im*wtim*pmodel_im).sum()
+
+        # if psf_data_sum == 0.0 or psf_psf_sum == 0.0:
+
+        if psf_psf_sum <= 0.0:
+            spread_model = -9999.0
+            flags = 2**0
+        else:
+            flags = 0
+
+            spread_model = (
+                mod_data_sum/psf_data_sum - mod_psf_sum/psf_psf_sum
+            )
+            print('spread_model:', spread_model)
+
+        self._result = {
+            'flags': flags,
+            'spread_model': spread_model,
+        }
+
+    def go_sx(self):
+        """
+        something like the sx version
+        """
+
+        mod_data_sum = 0.0
+        psf_data_sum = 0.0
+        mod_psf_sum = 0.0
+        psf_psf_sum = 0.0
+
+        for obslist in self.mbobs:
+            for obs in obslist:
+                if not obs.has_gmix():
+                    raise ValueError('all obs must have a gmix set')
+                if not obs.psf.has_gmix():
+                    raise ValueError('all psf obs must have a gmix set')
+
+                # this makes a copy
+                psf_gmix = obs.psf.gmix
+                psf_gmix.set_flux(1.0)
+
+                # ensure psf is centered in the same place
+                gm0 = obs.gmix
+                row, col = gm0.get_cen()
+
+                psf_gmix.set_cen(row, col)
+
+                # gmix = gm0.convolve(psf_gmix)
+                # gmix.set_flux(1.0)
+
+                psf_T = psf_gmix.get_T()
+                gmconv = ngmix.GMixModel(
+                    [0.0, 0.0, 0.0, 0.0, psf_T, 1.0],
+                    'gauss',
+                )
+                gmix = psf_gmix.convolve(gmconv)
+                gmix.set_cen(row, col)
+
+                jac = obs.jacobian
+                image = obs.image
+                dims = image.shape
+
+                model_im = gmix.make_image(dims, jacobian=jac)
+                pmodel_im = psf_gmix.make_image(dims, jacobian=jac)
+
+                wtim = obs.weight
+
+                mod_data_sum += (model_im*wtim*image).sum()
+                psf_data_sum += (pmodel_im*wtim*image).sum()
+
+                mod_psf_sum += (model_im*wtim*pmodel_im).sum()
+                psf_psf_sum += (pmodel_im*wtim*pmodel_im).sum()
+
+        if psf_data_sum == 0.0 or psf_psf_sum == 0.0:
+            spread_model = -9999.0
+            flags = 2**0
+        else:
+            flags = 0
+
+            spread_model = (
+                mod_data_sum/psf_data_sum - mod_psf_sum/psf_psf_sum
+            )
+            print('spread_model:', spread_model)
+
+        self._result = {
+            'flags': flags,
+            'spread_model': spread_model,
+        }

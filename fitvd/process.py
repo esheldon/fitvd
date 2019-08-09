@@ -17,6 +17,7 @@ from . import vis
 from . import util
 from . import desbits
 from . import procflags
+from . import fofs
 from .procflags import get_flagname
 
 logger = logging.getLogger(__name__)
@@ -358,7 +359,7 @@ class Processor(object):
         mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
 
         if 'inject' in self.config and self.config['inject']['do_inject']:
-            self._inject_fake_objects(mbobs)
+            mbobs = self._inject_fake_objects(mbobs)
 
         mbobs, flags = self._set_weight(mbobs, index)
         if flags != 0:
@@ -369,12 +370,15 @@ class Processor(object):
             if flags != 0:
                 return None, flags
 
+        """
         if 'flux' in self.config['parspace']:
             mname = self.config['mof']['model']
             name = '%s_pars' % mname
             # mbobs.meta['input_model_pars'] = \
             #     self.model_data[name][index].copy()
-            # mbobs.meta['input_flags'] = self.model_data['flags'][index].copy()
+            # mbobs.meta['input_flags'] = \
+                self.model_data['flags'][index].copy()
+        """
 
         if hasattr(self, 'offsets'):
             self._add_offsets(mbobs, index)
@@ -525,7 +529,7 @@ class Processor(object):
 
         return val
 
-    def _inject_fake_objects(self, mbobs):
+    def _inject_fake_objects_old(self, mbobs):
         """
         inject a simple model for quick tests
         """
@@ -631,6 +635,35 @@ class Processor(object):
                 )
 
                 obs.image = image
+        return mbobs
+
+    def _inject_fake_objects(self, mbobs):
+        """
+        inject a simple model for quick tests
+        """
+
+        # sim = StarSim(self.rng)
+        sim = MixSim(self.rng, 1.2, 0.5)
+
+        Tfake = sim._hlr
+
+        new_mbobs = ngmix.MultiBandObsList()
+        new_mbobs.meta.update(mbobs.meta)
+
+        for obslist in mbobs:
+            new_obslist = ngmix.ObsList()
+            new_obslist.meta.update(obslist.meta)
+
+            new_obslist.meta['Tsky'] = Tfake
+            for obs in obslist:
+                noise = np.sqrt(1.0/obs.weight.max())
+                new_obs = sim.get_obs(noise)
+                new_obs.meta.update(obs.meta)
+                new_obslist.append(new_obs)
+
+            new_mbobs.append(new_obslist)
+
+        return new_mbobs
 
     def _get_best_epochs(self, index, mbobs):
         """
@@ -1101,3 +1134,105 @@ def _clip_pixel(pixel, npix):
     if pixel > (npix-1):
         pixel = (npix-1)
     return pixel
+
+
+class StarSim(object):
+    def __init__(self, rng):
+        self._rng = rng
+        self._psf_noise = 0.0001
+
+        self._fwhm = 0.9
+        self._hlr = self._fwhm/2
+        self._scale = 0.263
+        self._s2n_range = [1, 10000]
+        self._cat = fitsio.read('/astro/u/esheldon/fitvd/run-dessof-psc02/'
+                                'collated/run-dessof-psc02-COSMOS_C46.fits')
+
+    def get_obs(self, noise):
+        psf_im, psf_wt_im, obj_im, wt_im = self._get_images(noise)
+
+        pcen = (np.array(psf_im.shape)-1.0)/2.0
+        cen = (np.array(obj_im.shape)-1.0)/2.0
+
+        pjac = ngmix.DiagonalJacobian(
+            row=pcen[0],
+            col=pcen[1],
+            scale=self._scale,
+        )
+        jac = ngmix.DiagonalJacobian(
+            row=cen[0],
+            col=cen[1],
+            scale=self._scale,
+        )
+
+        psf_obs = ngmix.Observation(
+            psf_im,
+            weight=psf_wt_im,
+            jacobian=pjac,
+        )
+        obs = ngmix.Observation(
+            obj_im,
+            weight=wt_im,
+            jacobian=jac,
+            psf=psf_obs,
+        )
+        return obs
+
+    def _sample_flux(self):
+        i = self._rng.randint(0, self._cat.size)
+        return self._cat['bdf_flux'][i, 0]
+
+    def _get_images(self, noise):
+        psf, obj = self._get_models()
+
+        psf_im = psf.drawImage(scale=self._scale).array
+        obj_im = obj.drawImage(scale=self._scale).array
+
+        obj_im += self._rng.normal(
+            scale=noise,
+            size=obj_im.shape,
+        )
+        psf_im += self._rng.normal(
+            scale=self._psf_noise,
+            size=psf_im.shape,
+        )
+
+        wt_im = np.zeros(obj_im.shape) + 1.0/noise**2
+        psf_wt_im = np.zeros(psf_im.shape) + 1.0/self._psf_noise**2
+
+        return psf_im, psf_wt_im, obj_im, wt_im
+
+    def _get_models(self):
+        shift = self._sample_shift()
+        obj = self._get_model().shift(*shift)
+        psf = self._get_model().shift(*shift)
+        psf = psf.withFlux(1.0)
+        return psf, obj
+
+    def _get_model(self):
+        import galsim
+        flux = self._sample_flux()
+        return galsim.Gaussian(
+            fwhm=self._fwhm,
+            flux=flux,
+        )
+
+    def _sample_shift(self):
+        return self._rng.uniform(
+            low=-self._scale/2,
+            high=self._scale/2,
+            size=2,
+        )
+
+class MixSim(StarSim):
+    def __init__(self, rng, size_fac, rate):
+        self._size_fac = size_fac
+        self._rate = rate
+        super(MixSim, self).__init__(rng)
+
+    def _get_models(self):
+        psf, obj = super(MixSim, self)._get_models()
+        val = self._rng.uniform()
+        if val < self._rate:
+            obj = obj.dilate(self._size_fac)
+        return psf, obj
