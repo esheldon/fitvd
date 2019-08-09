@@ -245,7 +245,6 @@ class MOFFitter(FitterBase):
 
             self._do_measure_all_psf_fluxes(mbobs_list)
 
-
             epochs_data = self._get_epochs_output(mbobs_list)
 
             if self.guesses is not None and len(mbobs_list) == 1:
@@ -327,6 +326,7 @@ class MOFFitter(FitterBase):
                 reslist = fitter.get_result_list()
 
             data = self._get_output(
+                fitter,
                 mbobs_list,
                 res,
                 reslist,
@@ -422,6 +422,7 @@ class MOFFitter(FitterBase):
     def _get_dtype(self):
         npars = self.npars
         nband = self.nband
+        nbtup = (self.nband, )
 
         n = self.namer
         dt = [
@@ -436,11 +437,11 @@ class MOFFitter(FitterBase):
             ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
-            ('psf_flux_flags', 'i4', nband),
-            ('psf_flux', 'f8', nband),
-            ('psf_mag', 'f8', nband),
-            ('psf_flux_err', 'f8', nband),
-            ('psf_flux_s2n', 'f8', nband),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
@@ -453,10 +454,13 @@ class MOFFitter(FitterBase):
             (n('T'), 'f8'),
             (n('T_err'), 'f8'),
             (n('T_ratio'), 'f8'),
-            (n('flux'), 'f8', nband),
-            (n('mag'), 'f8', nband),
+            (n('flux'), 'f8', nbtup),
+            (n('mag'), 'f8', nbtup),
             (n('flux_cov'), 'f8', (nband, nband)),
-            (n('flux_err'), 'f8', nband),
+            (n('flux_err'), 'f8', nbtup),
+            ('gap_flux', 'f8', nbtup),
+            ('gap_flux_err', 'f8', nbtup),
+            ('gap_mag', 'f8', nbtup),
         ]
 
         if 'bd' in self['mof']['model']:
@@ -494,16 +498,15 @@ class MOFFitter(FitterBase):
 
         for n in st.dtype.names:
             if n not in noset:
-                if 'err' in n or 'cof' in n:
+                if 'err' in n or 'cov' in n:
                     st[n] = 9.999e9
                 else:
                     st[n] = -9.999e9
 
         return st
 
-    def _get_output(self, mbobs_list, main_res, reslist):
+    def _get_output(self, fitter, mbobs_list, main_res, reslist):
 
-        nband = self.nband
         nobj = len(mbobs_list)
         output = self._get_struct(nobj)
 
@@ -526,28 +529,22 @@ class MOFFitter(FitterBase):
 
             for band, obslist in enumerate(mbobs):
                 meta = obslist.meta
+                zp = meta['magzp_ref']
+
                 if 'psf_flux_flags' not in meta:
                     continue
 
-                if nband > 1:
-                    t['psf_flux_flags'][band] = meta['psf_flux_flags']
-                    for name in ('flux', 'flux_err', 'flux_s2n'):
-                        t[pn(name)][band] = meta[pn(name)]
+                t['psf_flux_flags'][band] = meta['psf_flux_flags']
+                for name in ('flux', 'flux_err', 'flux_s2n'):
+                    t[pn(name)][band] = meta[pn(name)]
 
-                    tflux = t[pn('flux')][band].clip(min=0.001)
-                    t[pn('mag')][band] = \
-                        meta['magzp_ref']-2.5*np.log10(tflux)
-
-                else:
-                    t['psf_flux_flags'] = meta['psf_flux_flags']
-                    for name in ('flux', 'flux_err', 'flux_s2n'):
-                        t[pn(name)] = meta[pn(name)]
-
-                    tflux = t[pn('flux')].clip(min=0.001)
-                    t[pn('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
+                tflux = t[pn('flux')][band].clip(min=0.001)
+                t[pn('mag')][band] = get_mag(tflux, zp)
 
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
+
+            weight_fwhm = self['gap']['weight_fwhm']
 
             for i, res in enumerate(reslist):
                 t = output[i]
@@ -555,28 +552,6 @@ class MOFFitter(FitterBase):
 
                 t['badpix_frac'] = mbobs.meta['badpix_frac']
 
-                """
-                for band, obslist in enumerate(mbobs):
-                    meta = obslist.meta
-
-                    if nband > 1:
-                        t['psf_flux_flags'][band] = meta['psf_flux_flags']
-                        for name in ('flux', 'flux_err', 'flux_s2n'):
-                            t[pn(name)][band] = meta[pn(name)]
-
-                        tflux = t[pn('flux')][band].clip(min=0.001)
-                        t[pn('mag')][band] = \
-                            meta['magzp_ref']-2.5*np.log10(tflux)
-
-                    else:
-                        print('meta:', meta)
-                        t['psf_flux_flags'] = meta['psf_flux_flags']
-                        for name in ('flux', 'flux_err', 'flux_s2n'):
-                            t[pn(name)] = meta[pn(name)]
-
-                        tflux = t[pn('flux')].clip(min=0.001)
-                        t[pn('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
-                """
                 for name, val in res.items():
                     if name == 'nband':
                         continue
@@ -594,13 +569,24 @@ class MOFFitter(FitterBase):
 
                 for band, obslist in enumerate(mbobs):
                     meta = obslist.meta
-                    if nband > 1:
-                        tflux = t[n('flux')][band].clip(min=0.001)
-                        t[n('mag')][band] = \
-                            meta['magzp_ref']-2.5*np.log10(tflux)
+                    zp = meta['magzp_ref']
+
+                    tflux = t[n('flux')][band]
+                    tflux_err = t[n('flux_err')][band]
+
+                    t[n('mag')][band] = get_mag(tflux, zp)
+
+                    gm = fitter.get_gmix(i, band=band)
+                    gap_flux = gm.get_gaussap_flux(fwhm=weight_fwhm)
+
+                    if tflux > 0:
+                        efac = gap_flux/tflux
                     else:
-                        tflux = t[n('flux')].clip(min=0.001)
-                        t[n('mag')] = meta['magzp_ref']-2.5*np.log10(tflux)
+                        efac = 1.0
+
+                    t['gap_flux'][band] = gap_flux
+                    t['gap_flux_err'][band] = tflux_err*efac
+                    t['gap_mag'][band] = get_mag(gap_flux, zp)
 
                 if 'pars' in res:
                     pname = 'pars'
@@ -614,7 +600,7 @@ class MOFFitter(FitterBase):
                     estr = ' '.join(['%8.3g' % el for el in t[n(perr_name)]])
                 except TypeError:
                     pstr = '%8.3g' % t[n(pname)]
-                    estr = '%8.3g' % t[n(perrname)]
+                    estr = '%8.3g' % t[n(perr_name)]
 
                 logger.debug('%d pars: %s' % (i, pstr))
                 logger.debug('%d perr: %s' % (i, estr))
@@ -725,6 +711,7 @@ class MOFFluxFitter(MOFFitter):
             reslist = fitter.get_result_list()
 
         data = self._get_output(
+            fitter,
             mbobs_list,
             res,
             reslist,
@@ -758,6 +745,7 @@ class MOFFluxFitter(MOFFitter):
         # npars = self.npars
         npars = self.nband
         nband = self.nband
+        nbtup = (self.nband, )
 
         n = self.namer
         dt = [
@@ -772,22 +760,25 @@ class MOFFluxFitter(MOFFitter):
             ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
-            ('psf_flux_flags', 'i4', nband),
-            ('psf_flux', 'f8', nband),
-            ('psf_mag', 'f8', nband),
-            ('psf_flux_err', 'f8', nband),
-            ('psf_flux_s2n', 'f8', nband),
-            (n('flags'), 'i4', nband),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
+            (n('flags'), 'i4', nbtup),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
             (n('pars'), 'f8', npars),
             (n('pars_err'), 'f8', npars),
             (n('pars_cov'), 'f8', (npars, npars)),
-            (n('flux'), 'f8', nband),
-            (n('mag'), 'f8', nband),
+            (n('flux'), 'f8', nbtup),
+            (n('mag'), 'f8', nbtup),
             (n('flux_cov'), 'f8', (nband, nband)),
-            (n('flux_err'), 'f8', nband),
+            (n('flux_err'), 'f8', nbtup),
+            ('gap_flux', 'f8', nbtup),
+            ('gap_flux_err', 'f8', nbtup),
+            ('gap_mag', 'f8', nbtup),
         ]
 
         return dt
@@ -814,6 +805,7 @@ class MOFFitterGS(MOFFitter):
     def _get_dtype(self):
         npars = self.npars
         nband = self.nband
+        nbtup = (self.nband, )
 
         # TODO: get psf hlr too and do ratio?
         n = self.namer
@@ -829,11 +821,11 @@ class MOFFitterGS(MOFFitter):
             ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
-            ('psf_flux_flags', 'i4', nband),
-            ('psf_flux', 'f8', nband),
-            ('psf_mag', 'f8', nband),
-            ('psf_flux_err', 'f8', nband),
-            ('psf_flux_s2n', 'f8', nband),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
@@ -845,10 +837,10 @@ class MOFFitterGS(MOFFitter):
             (n('g_cov'), 'f8', (2, 2)),
             (n('hlr'), 'f8'),
             (n('hlr_err'), 'f8'),
-            (n('flux'), 'f8', nband),
-            (n('mag'), 'f8', nband),
+            (n('flux'), 'f8', nbtup),
+            (n('mag'), 'f8', nbtup),
             (n('flux_cov'), 'f8', (nband, nband)),
-            (n('flux_err'), 'f8', nband),
+            (n('flux_err'), 'f8', nbtup),
         ]
 
         if 'bd' in self['mof']['model']:
@@ -964,6 +956,7 @@ class MOFFluxFitterGS(MOFFitterGS):
             reslist = fitter.get_result_list()
 
         data = self._get_output(
+            fitter,
             mbobs_list,
             res,
             reslist,
@@ -989,6 +982,7 @@ class MOFFluxFitterGS(MOFFitterGS):
     def _get_dtype(self):
         npars = self.npars
         nband = self.nband
+        nbtup = (self.nband, )
 
         # TODO: get psf hlr too and do ratio?
         n = self.namer
@@ -1004,21 +998,21 @@ class MOFFluxFitterGS(MOFFitterGS):
             ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
-            ('psf_flux_flags', 'i4', nband),
-            ('psf_flux', 'f8', nband),
-            ('psf_mag', 'f8', nband),
-            ('psf_flux_err', 'f8', nband),
-            ('psf_flux_s2n', 'f8', nband),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
             (n('pars'), 'f8', npars),
             (n('pars_err'), 'f8', npars),
             (n('pars_cov'), 'f8', (npars, npars)),
-            (n('flux'), 'f8', nband),
-            (n('mag'), 'f8', nband),
+            (n('flux'), 'f8', nbtup),
+            (n('mag'), 'f8', nbtup),
             (n('flux_cov'), 'f8', (nband, nband)),
-            (n('flux_err'), 'f8', nband),
+            (n('flux_err'), 'f8', nbtup),
         ]
 
         return dt
@@ -1398,11 +1392,11 @@ def get_stamp_guesses_gs(list_of_obs,
 
         for band, obslist in enumerate(mbo):
             obslist = mbo[band]
-            scale = obslist[0].jacobian.scale
             band_meta = obslist.meta
 
             # TODO: if we get psf flux from galsim psf then we can
             # remove the scale squared
+            # scale = obslist[0].jacobian.scale
             # flux = band_meta['psf_flux']/scale**2
             flux = band_meta['psf_flux']
             if flux < 0.01:
@@ -1574,3 +1568,10 @@ def get_shape_guess(g1, g2, width, rng, gmax=0.9):
             pass
 
     return shape_new.g1, shape_new.g2
+
+
+def get_mag(flux, magzp, min_flux=0.001):
+    if flux < min_flux:
+        flux = min_flux
+
+    return magzp - 2.5*np.log10(flux)
