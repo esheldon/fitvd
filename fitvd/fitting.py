@@ -463,6 +463,9 @@ class MOFFitter(FitterBase):
             ('gap_mag', 'f8', nbtup),
             ('spread_model', 'f8'),
             ('spread_model_flags', 'i4'),
+            ('wmom_T', 'f8'),
+            ('wmom_psf_T', 'f8'),
+            ('wmom_flags', 'i4'),
         ]
 
         if 'bd' in self['mof']['model']:
@@ -486,6 +489,7 @@ class MOFFitter(FitterBase):
         st['psf_flux_flags'] = procflags.NO_ATTEMPT
 
         st['spread_model_flags'] = procflags.NO_ATTEMPT
+        st['wmom_flags'] = procflags.NO_ATTEMPT
 
         n = self.namer
         st[n('flags')] = procflags.NO_ATTEMPT
@@ -495,6 +499,7 @@ class MOFFitter(FitterBase):
             'ra', 'dec',
             'flags', 'flagstr',
             'spread_model_flags',
+            'wmom_flags',
             'psf_flux_flags',
             n('flags'),
             'fof_id', 'fof_size',
@@ -599,6 +604,13 @@ class MOFFitter(FitterBase):
                 smres = calc_spread_model(mbobs)
                 t['spread_model_flags'] = smres['flags']
                 t['spread_model'] = smres['spread_model']
+
+                wmom_res = calc_wmom(mbobs)
+                obj_res = wmom_res['res']
+                psf_res = wmom_res['psf_res']
+                t['wmom_flags'] = obj_res['flags']
+                t['wmom_T'] = obj_res['T']
+                t['wmom_psf_T'] = psf_res['T']
 
                 if 'pars' in res:
                     pname = 'pars'
@@ -1764,4 +1776,100 @@ class SpreadModel(object):
         self._result = {
             'flags': flags,
             'spread_model': spread_model,
+        }
+
+
+def calc_wmom(mbobs):
+    """
+    calculate a spread model like quantity using input models
+
+    Parameters
+    ----------
+    mbobs: ngmix.MultiBandObsList
+        obs and psf obs must have gmix set
+    """
+    wm = WMom(mbobs)
+    wm.go()
+    return wm.get_result()
+
+
+class WMom(object):
+    """
+    calculate a spread model like quantity using input models
+
+    Parameters
+    ----------
+    mbobs: ngmix.MultiBandObsList
+        obs and psf obs must have gmix set
+    """
+    def __init__(self, mbobs, weight_fwhm=2.0):
+
+        if not isinstance(mbobs, ngmix.MultiBandObsList):
+            raise ValueError('input must be a MultiBandObsList')
+
+        self.weight_fwhm = weight_fwhm
+        T = ngmix.moments.fwhm_to_T(weight_fwhm)
+        self.wt = ngmix.GMixModel(
+            [0.0, 0.0, 0.0, 0.0, T, 1.0],
+            'gauss',
+        )
+        self.mbobs = mbobs
+
+    def get_result(self):
+        """
+        get the result structure
+        """
+        if not hasattr(self, '_result'):
+            raise RuntimeError('run go() first')
+        return self._result
+
+    def go(self):
+
+        wt = self.wt.copy()
+        i = 0
+        for obslist in self.mbobs:
+
+            for obs in obslist:
+                # we need these for centers
+                if not obs.has_gmix():
+                    raise ValueError('all obs must have a gmix set')
+                if not obs.psf.has_gmix():
+                    raise ValueError('all psf obs must have a gmix set')
+
+                # this makes a copy
+                gmix = obs.gmix
+                psf_gmix = obs.psf.gmix
+
+                row, col = gmix.get_cen()
+                prow, pcol = psf_gmix.get_cen()
+
+                wt.set_cen(row, col)
+                tsums = wt.get_weighted_sums(obs, 1.e9)
+
+                wt.set_cen(prow, pcol)
+                tpsf_sums = wt.get_weighted_sums(obs.psf, 1.e9)
+
+                if i == 0:
+                    sums = tsums
+                    psf_sums = tpsf_sums
+                else:
+                    sums['wsum'] += tsums['wsum']
+                    sums['npix'] += tsums['npix']
+                    psf_sums['wsum'] += tpsf_sums['wsum']
+                    psf_sums['npix'] += tpsf_sums['npix']
+
+                    for i in xrange(6):
+                        sums['sums'][i] += tsums['sums'][i]
+                        psf_sums['sums'][i] += tpsf_sums['sums'][i]
+                        for j in xrange(6):
+                            sums['sums_cov'][i, j] += tsums['sums_cov'][i, j]
+                            psf_sums['sums_cov'][i, j] += tpsf_sums['sums_cov'][i, j]
+
+
+        resarray = ngmix.gmix.get_weighted_moments_stats(sums)
+        psf_resarray = ngmix.gmix.get_weighted_moments_stats(psf_sums)
+
+        self._result = {
+            'res': resarray,
+            'psf_res': psf_resarray,
         }
