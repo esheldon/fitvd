@@ -1602,7 +1602,6 @@ def calc_spread_model(mbobs):
     """
     sm = SpreadModel(mbobs)
     sm.go()
-    # sm.go_sx()
     return sm.get_result()
 
 
@@ -1681,7 +1680,7 @@ class SpreadModel(object):
 
         # if psf_data_sum == 0.0 or psf_psf_sum == 0.0:
 
-        if psf_psf_sum <= 0.0:
+        if psf_data_sum <= 0.0 or psf_psf_sum <= 0.0:
             spread_model = -9999.0
             flags = 2**0
         else:
@@ -1690,7 +1689,6 @@ class SpreadModel(object):
             spread_model = (
                 mod_data_sum/psf_data_sum - mod_psf_sum/psf_psf_sum
             )
-            print('spread_model:', spread_model)
 
         self._result = {
             'flags': flags,
