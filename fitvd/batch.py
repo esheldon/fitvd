@@ -647,11 +647,32 @@ class CondorBatch(ShellBatch):
         else:
             fofs_text = ''
         """
-
-        text = _condor_master_template % {
+        d = {
             'meds_files': meds_files,
             'fofs_text': fofs_text,
         }
+
+        if 'model_pars_run' in self:
+            pars_file = files.get_collated_file(
+                self['model_pars_run'],
+                tilename,
+            )
+            d['model_pars'] = '--model-pars=%s' % pars_file
+        else:
+            d['model_pars'] = ''
+
+        if self.args.offsets is not None:
+            d['offsets'] = '--offsets=%s' % self.args.offsets
+        else:
+            d['offsets'] = ''
+
+        if self.args.blacklist is not None:
+            d['blacklist'] = '--blacklist=%s' % self.args.blacklist
+        else:
+            d['blacklist'] = ''
+
+
+        text = _condor_master_template % d
         master_script = files.get_condor_master_path(self['run'], tilename)
         print('writing master:', master_script)
         with open(master_script, 'w') as fobj:
@@ -842,7 +863,10 @@ fitvd \
     --output=$output \
     --start=$start \
     --end=$end \
+    %(model_pars)s \
+    %(offsets)s \
     %(fofs_text)s \
+    %(blacklist)s \
     $meds &> $tmplog
 
 mv -vf $tmplog $logfile
