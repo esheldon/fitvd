@@ -1636,12 +1636,15 @@ class SpreadModel(object):
         mod_psf_sum = 0.0
         psf_psf_sum = 0.0
 
+        """
         fwhm = 2.5
         T = ngmix.moments.fwhm_to_T(fwhm)
         gmwt = ngmix.GMixModel(
             [0.0, 0.0, 0.0, 0.0, T, 1.0],
             'gauss',
         )
+        """
+        # sps = []
         for obslist in self.mbobs:
             for obs in obslist:
                 if not obs.has_gmix():
@@ -1660,7 +1663,7 @@ class SpreadModel(object):
                 # ensure psf is centered in the same place
                 row, col = gmix.get_cen()
                 psf_gmix.set_cen(row, col)
-                gmwt.set_cen(row, col)
+                # gmwt.set_cen(row, col)
 
                 jac = obs.jacobian
                 image = obs.image
@@ -1668,9 +1671,10 @@ class SpreadModel(object):
 
                 model_im = gmix.make_image(dims, jacobian=jac)
                 pmodel_im = psf_gmix.make_image(dims, jacobian=jac)
-                gmwt_im = gmwt.make_image(dims, jacobian=jac)
+                # gmwt_im = gmwt.make_image(dims, jacobian=jac)
 
-                wtim = obs.weight * gmwt_im
+                # wtim = obs.weight * gmwt_im
+                wtim = obs.weight
 
                 mod_data_sum += (model_im*wtim*image).sum()
                 psf_data_sum += (pmodel_im*wtim*image).sum()
@@ -1678,7 +1682,21 @@ class SpreadModel(object):
                 mod_psf_sum += (model_im*wtim*pmodel_im).sum()
                 psf_psf_sum += (pmodel_im*wtim*pmodel_im).sum()
 
-        # if psf_data_sum == 0.0 or psf_psf_sum == 0.0:
+                """
+                if psf_data_sum > 0.0 and psf_psf_sum > 0.0:
+                    spread_model = (
+                        mod_data_sum/psf_data_sum - mod_psf_sum/psf_psf_sum
+                    )
+                    sps.append(spread_model)
+                """
+        """
+        if len(sps) > 0:
+            flags = 0
+            spread_model = sum(sps)/len(sps)
+        else:
+            spread_model = -9999.0
+            flags = 2**0
+        """
 
         if psf_data_sum <= 0.0 or psf_psf_sum <= 0.0:
             spread_model = -9999.0
