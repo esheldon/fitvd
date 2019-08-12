@@ -1,5 +1,3 @@
-__version__='v0.9.5.1'
-
 from . import fofs
 from . import masks
 from . import fitting
@@ -10,3 +8,4 @@ from . import batch
 from . import vis
 from . import pbar
 from . import desbits
+from .version import __version__

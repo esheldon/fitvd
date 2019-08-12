@@ -30,6 +30,7 @@ class Processor(object):
     def __init__(self, args):
         self.args = args
 
+        self._set_meta()
         self._set_rng()
         self._set_blacklist()
         self._load_conf()
@@ -948,6 +949,20 @@ class Processor(object):
         """
         self.rng = np.random.RandomState(self.args.seed)
 
+    def _set_meta(self):
+        import ngmix
+        import mof
+        from .version import __version__
+        dt = [
+            ('ngmix_vers', 'S10'),
+            ('mof_vers', 'S10'),
+            ('fitvd_vers', 'S10'),
+        ]
+        meta = np.zeros(1, dtype=dt)
+        meta['ngmix_vers'] = ngmix.__version__
+        meta['mof_vers'] = mof.__version__
+        meta['fitvd_vers'] = __version__
+
     def _set_blacklist(self):
         blacklist = None
         if self.args.blacklist is not None:
@@ -1223,6 +1238,7 @@ class StarSim(object):
             high=self._scale/2,
             size=2,
         )
+
 
 class MixSim(StarSim):
     def __init__(self, rng, size_fac, rate):
