@@ -5,70 +5,77 @@ from __future__ import print_function
 import os
 import yaml
 import navy
-import meds
 import fitsio
-import fitvd
 from fitvd import files, split
 import esutil as eu
 import argparse
 
-parser=argparse.ArgumentParser()
-parser.add_argument('--run-config',required=True)
-parser.add_argument('--fit-config',required=True)
-parser.add_argument('--tilename',required=True)
-parser.add_argument('--meds',help='example meds file')
+parser = argparse.ArgumentParser()
+parser.add_argument('--run-config', required=True)
+parser.add_argument('--fit-config', required=True)
+parser.add_argument('--tilename', required=True)
+parser.add_argument('--meds', help='example meds file')
+
+
+def extract_meta(meta_list):
+    meta = None
+    for i, tmeta in enumerate(meta_list):
+        if i == 0:
+            meta = tmeta
+        else:
+            for v in ['ngmix_vers', 'mof_vers', 'fitvd_vers']:
+                assert meta[v] == tmeta[v]
+    return meta
+
 
 def main():
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     def get_data(fname):
-        print('reading:',fname)
+        print('reading:', fname)
         with fitsio.FITS(fname) as fits:
             model_fits = fits['model_fits'][:]
             if 'epochs_data' in fits:
                 epochs_data = fits['epochs_data'][:]
             else:
-                epochs_data=None
+                epochs_data = None
 
             if 'fof_data' in fits:
                 fof_data = fits['fof_data'][:]
             else:
-                fof_data=None
+                fof_data = None
 
-        return model_fits, epochs_data, fof_data, fname
+            if 'meta_data' in fits:
+                meta_data = fits['meta_data'][:]
+            else:
+                meta_data = None
+
+        return model_fits, epochs_data, fof_data, meta_data, fname
 
     if navy.rank == navy.ADMIRAL:
 
         with open(args.run_config) as fobj:
-            config=yaml.load(fobj)
-        with open(args.fit_config) as fobj:
-            fit_conf=yaml.load(fobj)
+            config = yaml.load(fobj)
 
-        bname=os.path.basename(args.run_config)
-        run = bname.replace('.yaml','')
+        bname = os.path.basename(args.run_config)
+        run = bname.replace('.yaml', '')
 
-        output_file=files.get_collated_file(run, args.tilename)
+        output_file = files.get_collated_file(run, args.tilename)
         files.makedir_fromfile(output_file)
 
-        print('will write to:',output_file)
+        print('will write to:', output_file)
 
-        fof_file=files.get_fof_file(run, args.tilename)
-        nbrs,fofst=files.load_fofs(fof_file)
-        """
-        if 'fofs' in fit_conf:
-            fof_file=files.get_fof_file(run, args.tilename)
-            nbrs,fofst=files.load_fofs(fof_file)
-        else:
-            assert args.meds is not None,'send meds if not doing fofs'
-            m=meds.MEDS(args.meds)
-            cat=m.get_cat()
-            fofst = fitvd.fofs.make_singleton_fofs(cat)
-        """
+        fof_file = files.get_fof_file(run, args.tilename)
+        nbrs, fofst = files.load_fofs(fof_file)
 
-        fof_splits = split.get_splits_variable(fofst, config['chunksize'], config['threshold'])
-        flist=[]
+        fof_splits = split.get_splits_variable(
+            fofst,
+            config['chunksize'],
+            config['threshold'],
+        )
+        flist = []
         for start, end in fof_splits:
-            flist.append( 
+            flist.append(
                 files.get_split_output(
                     run,
                     args.tilename,
@@ -79,23 +86,28 @@ def main():
             )
 
         tmpdir = files.get_tempdir()
-        with files.StagedOutFile(output_file,tmpdir=tmpdir) as sf:
-            with fitsio.FITS(sf.path,'rw',clobber=True) as fits:
+        with files.StagedOutFile(output_file, tmpdir=tmpdir) as sf:
+            with fitsio.FITS(sf.path, 'rw', clobber=True) as fits:
 
                 admiral = navy.Admiral(flist)
                 admiral.orchestrate()
                 reports = admiral.reports
 
-                mlist=[]
-                elist=[]
-                foflist=[]
-                for m, e, f, fname in reports:
+                mlist = []
+                elist = []
+                foflist = []
+                meta_list = []
+                for m, e, f, meta, fname in reports:
                     if m is not None:
                         mlist.append(m)
                     if e is not None:
                         elist.append(e)
                     if f is not None:
                         foflist.append(f)
+                    if meta is not None:
+                        meta_list.append(f)
+
+                meta_data = extract_meta(meta_list)
 
                 model_fits = eu.numpy_util.combine_arrlist(mlist)
                 epochs_data = eu.numpy_util.combine_arrlist(elist)
@@ -114,12 +126,13 @@ def main():
                 fits.write(epochs_data, extname='epochs_data')
                 fits.write(fof_data, extname='fof_data')
 
+                if meta_data is not None:
+                    fits.write(meta_data, extname='meta_data')
+
     else:
         ship = navy.Ship(get_data)
         ship.go()
 
 
-
-if __name__=='__main__':
+if __name__ == '__main__':
     main()
- 
