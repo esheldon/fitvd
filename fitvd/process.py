@@ -942,6 +942,7 @@ class Processor(object):
             if epochs_data is not None:
                 fits.write(epochs_data, extname='epochs_data')
             fits.write(fof_data, extname='fof_data')
+            fits.write(self.meta, extname='meta_data')
 
     def _set_rng(self):
         """
@@ -962,6 +963,8 @@ class Processor(object):
         meta['ngmix_vers'] = ngmix.__version__
         meta['mof_vers'] = mof.__version__
         meta['fitvd_vers'] = __version__
+
+        self.meta = meta
 
     def _set_blacklist(self):
         blacklist = None
