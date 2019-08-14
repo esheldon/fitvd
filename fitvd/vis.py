@@ -77,6 +77,7 @@ def compare_models(mbobs_list, fitter, fofid, output, show=False, save=False):
 
                 image = obs.image
 
+                """
                 plt = compare_images_mosaic(
                     image,
                     model_image,
@@ -84,6 +85,17 @@ def compare_models(mbobs_list, fitter, fofid, output, show=False, save=False):
                     title=title,
                     show=show,
                 )
+                """
+                wt = obs.weight.copy()
+                plt = compare_images(
+                    image,
+                    model_image,
+                    wt,
+                    labels=['image', 'model'],
+                    title=title,
+                    show=show,
+                )
+
                 if save:
                     fname = 'compare-fof%06d-%d-band%d-%d.png' % \
                         (fofid, id, band, obsnum)
@@ -317,6 +329,126 @@ def compare_images_mosaic_old(im1, im2, **keys):
 
     tab[0, 0] = residplt
     tab[1, 0] = ctab
+
+    images._writefile_maybe(tab, **keys)
+    images._show_maybe(tab, **keys)
+
+    return tab
+
+
+def compare_images(im1_in, im2_in, wt_in, **keys):
+    import biggles
+    import copy
+    import images
+
+    wt = wt_in.copy()
+    maxwt = wt.max()
+    noiseval = np.sqrt(1.0/maxwt)
+
+    w = np.where(wt <= 0.0)
+    if w[0].size > 0:
+        wt[w] = maxwt
+    noise = np.random.normal(size=wt.shape)
+    noise *= np.sqrt(1.0/wt)
+
+    if im1_in.shape != im2_in.shape:
+        raise ValueError("images must be the same shape")
+
+    color1 = keys.get('color1', 'blue')
+    color2 = keys.get('color2', 'orange')
+    colordiff = keys.get('colordiff', 'red')
+
+    label1 = keys.get('label1', 'im1')
+    label2 = keys.get('label2', 'im2')
+
+    wbad = np.where(wt <= 0.0)
+    if wbad[0].size > 0:
+        wt
+
+    resid = (im1_in - im2_in)
+    # print('noiseval:', noiseval, 'std resid:', resid.std(), 'noise std:',
+    #       noise.std())
+
+    im2 = im2_in + noise
+
+    maxval = max(im1_in.max(), im2.max())
+    minval = 0.1*noiseval
+
+    im1 = im1_in.clip(min=minval)/maxval
+    im2 = im2.clip(min=minval)/maxval
+
+    np.log(im1, out=im1)
+    np.log(im2, out=im2)
+
+    im1 -= im1.min()
+    im2 -= im2.min()
+
+    cen = [(im1.shape[0]-1)/2., (im1.shape[1]-1)/2.]
+
+    labelres = '%s-%s' % (label1, label2)
+
+    biggles.configure('default', 'fontsize_min', 1.)
+
+    # will only be used if type is contour
+    tab = biggles.Table(2, 3)
+    if 'title' in keys:
+        tab.title = keys['title']
+
+    tkeys = copy.deepcopy(keys)
+    tkeys.pop('title', None)
+    tkeys['show'] = False
+    tkeys['file'] = None
+
+    tab[0, 0] = images.view(im1, autoscale=True, **tkeys)
+    tab[0, 1] = images.view(im2, autoscale=True, **tkeys)
+    tab[0, 2] = residplt = images.view(
+        resid*np.sqrt(wt_in.clip(min=0)), **tkeys
+    )
+
+    wgood = np.where(wt_in > 0.0)
+    dof = wgood[0].size
+    chi2per = (resid**2 * wt_in).sum()/dof
+    lab = biggles.PlotLabel(0.9, 0.9,
+                            r'$\chi^2/dof$: %.2f' % chi2per,
+                            color='red',
+                            halign='right')
+    residplt.add(lab)
+
+    cen0 = int(cen[0])
+    cen1 = int(cen[1])
+    im1rows = im1_in[:, cen1]
+    im1cols = im1_in[cen0, :]
+    im2rows = im2_in[:, cen1]
+    im2cols = im2_in[cen0, :]
+    resrows = resid[:, cen1]
+    rescols = resid[cen0, :]
+
+    him1rows = biggles.Histogram(im1rows, color=color1)
+    him1cols = biggles.Histogram(im1cols, color=color1)
+    him2rows = biggles.Histogram(im2rows, color=color2)
+    him2cols = biggles.Histogram(im2cols, color=color2)
+    hresrows = biggles.Histogram(resrows, color=colordiff)
+    hrescols = biggles.Histogram(rescols, color=colordiff)
+
+    him1rows.label = label1
+    him2rows.label = label2
+    hresrows.label = labelres
+    key = biggles.PlotKey(0.1, 0.9,
+                          [him1rows, him2rows, hresrows])
+
+    rplt = biggles.FramedPlot()
+    rplt.add(him1rows, him2rows, hresrows, key)
+    rplt.xlabel = 'Center Rows'
+
+    cplt = biggles.FramedPlot()
+    cplt.add(him1cols, him2cols, hrescols)
+    cplt.xlabel = 'Center Columns'
+
+    rplt.aspect_ratio = 1
+    cplt.aspect_ratio = 1
+
+    tab[1, 0] = rplt
+    tab[1, 1] = cplt
 
     images._writefile_maybe(tab, **keys)
     images._show_maybe(tab, **keys)
