@@ -614,8 +614,8 @@ class MOFFitter(FitterBase):
                     pstr = '%8.3g' % t[n(pname)]
                     estr = '%8.3g' % t[n(perr_name)]
 
-                logger.debug('%d pars: %s' % (i, pstr))
-                logger.debug('%d perr: %s' % (i, estr))
+                logger.info('%d pars: %s' % (i, pstr))
+                logger.info('%d perr: %s' % (i, estr))
 
         return output
 
@@ -1217,10 +1217,19 @@ def get_stamp_guesses(list_of_obs,
     for i, mbo in enumerate(list_of_obs):
         detobslist = mbo[detband]
         detmeta = detobslist.meta
+        momres = get_weighted_moments(mbo)
 
-        T = detmeta.get('Tsky', None)
-        if T is None:
-            T = mbo[0][0].psf.gmix.get_T()*1.2
+        # T = detmeta.get('Tsky', None)
+        # if T is None:
+        #    T = mbo[0][0].psf.gmix.get_T()*1.2
+        # psf_T = mbo[0][0].psf.gmix.get_T()
+        # T = psf_T*0.25
+        # print("psf T:", psf_T)
+        # T = 0.025
+        # print("guess T:", T)
+        T = momres['T']
+        if T < 0.0:
+            T = 0.025
 
         beg = i*npars_per
 
@@ -1299,7 +1308,7 @@ def get_stamp_guesses(list_of_obs,
 
         ptup = (i, format_pars(guess[beg:beg+flux_start+band+1]))
 
-        logger.debug('guess[%d]: %s' % ptup)
+        logger.info('guess[%d]: %s' % ptup)
     return guess
 
 
@@ -1781,3 +1790,17 @@ class SpreadModel(object):
             'flags': flags,
             'spread_model': spread_model,
         }
+
+
+def get_weighted_moments(mbobs, fwhm=1.2):
+    T = ngmix.moments.fwhm_to_T(fwhm)
+    wt = ngmix.GMixModel(
+        [0.0, 0.0, 0.0, 0.0, T, 1.0],
+        'gauss',
+    )
+    res=None
+    for obslist in mbobs:
+        for obs in obslist:
+            res = wt.get_weighted_sums(obs, 1.e9, res=res)
+
+    return ngmix.gmix.get_weighted_moments_stats(res)

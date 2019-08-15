@@ -644,7 +644,7 @@ class Processor(object):
         """
 
         # sim = StarSim(self.rng)
-        sim = MixSim(self.rng, 1.2, 0.5)
+        sim = MixSim(self.rng, 4, 0.5)
 
         Tfake = sim._hlr
 
