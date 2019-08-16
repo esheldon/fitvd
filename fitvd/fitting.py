@@ -461,8 +461,8 @@ class MOFFitter(FitterBase):
             ('gap_flux', 'f8', nbtup),
             ('gap_flux_err', 'f8', nbtup),
             ('gap_mag', 'f8', nbtup),
-            ('spread_model', 'f8'),
-            ('spread_model_flags', 'i4'),
+            # ('spread_model', 'f8'),
+            # ('spread_model_flags', 'i4'),
         ]
 
         if 'bd' in self['mof']['model']:
@@ -485,7 +485,7 @@ class MOFFitter(FitterBase):
         st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
         st['psf_flux_flags'] = procflags.NO_ATTEMPT
 
-        st['spread_model_flags'] = procflags.NO_ATTEMPT
+        # st['spread_model_flags'] = procflags.NO_ATTEMPT
 
         n = self.namer
         st[n('flags')] = procflags.NO_ATTEMPT
@@ -596,9 +596,9 @@ class MOFFitter(FitterBase):
                     t['gap_flux_err'][band] = tflux_err*efac
                     t['gap_mag'][band] = get_mag(gap_flux, zp)
 
-                smres = calc_spread_model(mbobs)
-                t['spread_model_flags'] = smres['flags']
-                t['spread_model'] = smres['spread_model']
+                # smres = calc_spread_model(mbobs)
+                # t['spread_model_flags'] = smres['flags']
+                # t['spread_model'] = smres['spread_model']
 
                 if 'pars' in res:
                     pname = 'pars'
@@ -791,8 +791,8 @@ class MOFFluxFitter(MOFFitter):
             ('gap_flux', 'f8', nbtup),
             ('gap_flux_err', 'f8', nbtup),
             ('gap_mag', 'f8', nbtup),
-            ('spread_model', 'f8'),
-            ('spread_model_flags', 'i4'),
+            # ('spread_model', 'f8'),
+            # ('spread_model_flags', 'i4'),
         ]
 
         return dt
