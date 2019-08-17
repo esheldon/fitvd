@@ -24,7 +24,10 @@ def extract_meta(meta_list):
             meta = tmeta
         else:
             for v in ['ngmix_vers', 'mof_vers', 'fitvd_vers']:
-                assert meta[v] == tmeta[v]
+                if v in tmeta.dtype.names:
+                    assert meta[v] == tmeta[v]
+                else:
+                    print('%s missing from meta %d' % (v, i))
     return meta
 
 
@@ -105,7 +108,7 @@ def main():
                     if f is not None:
                         foflist.append(f)
                     if meta is not None:
-                        meta_list.append(f)
+                        meta_list.append(meta)
 
                 meta_data = extract_meta(meta_list)
 
