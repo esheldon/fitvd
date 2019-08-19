@@ -266,7 +266,7 @@ class MOFFitter(FitterBase):
                     logger.info('skipping fit, using input')
                     data = self.guesses[index:index+1]
             elif 'bd' in mofc['model']:
-                guesser = ExpGuesser(
+                guesser = GaussGuesser(
                     mofc, mbobs_list,
                     self.exp_prior,
                     self._mof_fitter_class, self.rng,
@@ -371,7 +371,7 @@ class MOFFitter(FitterBase):
         else:
             conf = self['mof']
             if conf['model'] in ['bdf', 'bd']:
-                # we will use the ExpGuesser class
+                # we will use the GaussGuesser class
                 self._guess_func = None
             else:
                 self._guess_func = get_stamp_guesses
@@ -1335,7 +1335,7 @@ def get_stamp_guesses(list_of_obs,
     return guess
 
 
-class ExpGuesser(dict):
+class GaussGuesser(dict):
     """
     first fit an exp to get size guesses
     """
@@ -1353,7 +1353,7 @@ class ExpGuesser(dict):
 
         fitter = self._mof_fitter_class(
             self.mbobs_list,
-            'exp',
+            'gauss',
             prior=self.exp_prior,
             lm_pars=lm_pars,
         )
@@ -1364,7 +1364,7 @@ class ExpGuesser(dict):
             self._last_guess = get_stamp_guesses(
                 self.mbobs_list,
                 self['detband'],
-                'exp',
+                'gauss',
                 self.rng,
                 prior=self.exp_prior,
             )
