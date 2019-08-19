@@ -1214,10 +1214,12 @@ def get_stamp_guesses(list_of_obs,
     npars_tot = nobj*npars_per
     guess = np.zeros(npars_tot)
 
+    wt_fwhm = 1.2
+    wt_T = ngmix.moments.fwhm_to_T(wt_fwhm)
     for i, mbo in enumerate(list_of_obs):
         detobslist = mbo[detband]
         detmeta = detobslist.meta
-        momres = get_weighted_moments(mbo)
+        momres = get_weighted_moments(mbo, fwhm=wt_fwhm)
 
         # T = detmeta.get('Tsky', None)
         # if T is None:
@@ -1227,9 +1229,10 @@ def get_stamp_guesses(list_of_obs,
         # print("psf T:", psf_T)
         # T = 0.025
         # print("guess T:", T)
-        T = momres['T']
-        if T < 0.0:
-            T = 0.025
+        Tmeas = momres['T']
+        T = 1.0/(1/Tmeas - 1/wt_T)
+        # if T < 0.0:
+        #     T = 0.025
 
         beg = i*npars_per
 
@@ -1243,6 +1246,7 @@ def get_stamp_guesses(list_of_obs,
         guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
 
         guess[beg+4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
+        # guess[beg+4] = 4*T*(1.0 + rng.uniform(low=-0.5, high=0.5))
 
         if 'bd' in model:
             if hasattr(prior.fracdev_prior, 'sigma'):
