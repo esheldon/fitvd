@@ -43,12 +43,14 @@ class FitterBase(dict):
         """
         raise NotImplementedError("implement go()")
 
-    def _get_prior(self, conf):
+    def _set_prior(self):
         """
         Set all the priors
         """
 
         from ngmix.joint_prior import PriorSimpleSep, PriorBDFSep, PriorBDSep
+
+        conf = self['mof']
 
         if 'priors' not in conf:
             return None
@@ -109,6 +111,12 @@ class FitterBase(dict):
                 fracdev_prior,
                 [flux_prior]*self.nband,
             )
+            self.exp_prior = PriorSimpleSep(
+                cen_prior,
+                g_prior,
+                size_prior,
+                [flux_prior]*self.nband,
+            )
 
         else:
 
@@ -119,7 +127,7 @@ class FitterBase(dict):
                 [flux_prior]*self.nband,
             )
 
-        return prior
+        self.mof_prior = prior
 
     def _get_prior_generic(self, ppars):
         """
@@ -209,7 +217,7 @@ class MOFFitter(FitterBase):
 
         super(MOFFitter, self).__init__(*args, **kw)
 
-        self.mof_prior = self._get_prior(self['mof'])
+        self._set_prior()
         self._set_mof_fitter_class()
         self._set_guess_func()
 
@@ -257,6 +265,14 @@ class MOFFitter(FitterBase):
                     dofit = False
                     logger.info('skipping fit, using input')
                     data = self.guesses[index:index+1]
+            elif 'bd' in mofc['model']:
+                guesser = ExpGuesser(
+                    mofc, mbobs_list,
+                    self.exp_prior,
+                    self._mof_fitter_class, self.rng,
+                )
+            else:
+                guesser = self._guess_func
 
             if dofit:
                 fitter = self._mof_fitter_class(
@@ -276,7 +292,7 @@ class MOFFitter(FitterBase):
                     for i in range(ntry):
                         logger.debug('try: %d' % (i+1))
 
-                        guess = self._guess_func(
+                        guess = guesser(
                             mbobs_list,
                             mofc['detband'],
                             mofc['model'],
@@ -353,7 +369,12 @@ class MOFFitter(FitterBase):
             logger.info('using input guesses')
             self._guess_func = ParsGuesser(self.guesses, get_stamp_guesses)
         else:
-            self._guess_func = get_stamp_guesses
+            conf = self['mof']
+            if conf['model'] in ['bdf', 'bd']:
+                # we will use the ExpGuesser class
+                self._guess_func = None
+            else:
+                self._guess_func = get_stamp_guesses
 
     def _setup(self):
         """
@@ -744,7 +765,7 @@ class MOFFluxFitter(MOFFitter):
 
         return pars, flags
 
-    def _get_prior(self, *args):
+    def _set_prior(self):
         raise ValueError('dont need a prior for MOFFlux fitting')
 
     def _set_guess_func(self):
@@ -1217,8 +1238,6 @@ def get_stamp_guesses(list_of_obs,
     wt_fwhm = 1.2
     wt_T = ngmix.moments.fwhm_to_T(wt_fwhm)
     for i, mbo in enumerate(list_of_obs):
-        detobslist = mbo[detband]
-        detmeta = detobslist.meta
         momres = get_weighted_moments(mbo, fwhm=wt_fwhm)
 
         # T = detmeta.get('Tsky', None)
@@ -1231,8 +1250,8 @@ def get_stamp_guesses(list_of_obs,
         # print("guess T:", T)
         Tmeas = momres['T']
         T = 1.0/(1/Tmeas - 1/wt_T)
-        # if T < 0.0:
-        #     T = 0.025
+        if T < 0.005:
+            T = 0.005
 
         beg = i*npars_per
 
@@ -1310,10 +1329,140 @@ def get_stamp_guesses(list_of_obs,
                 fluxes[wbad] = fluxes[wgood].mean()*fac
             logging.info('new guesses: %s' % format_pars(fluxes))
 
-        ptup = (i, format_pars(guess[beg:beg+flux_start+band+1]))
+        ptup = (model, i, format_pars(guess[beg:beg+flux_start+band+1]))
 
-        logger.info('guess[%d]: %s' % ptup)
+        logger.info('%s guess[%d]: %s' % ptup)
     return guess
+
+
+class ExpGuesser(dict):
+    """
+    first fit an exp to get size guesses
+    """
+    def __init__(self, conf, mbobs_list, exp_prior, fitter_class, rng):
+        self.update(conf)
+        self.mbobs_list = mbobs_list
+        self.exp_prior = exp_prior
+        self._mof_fitter_class = fitter_class
+        self.rng = rng
+
+        self._do_exp_fit()
+
+    def _do_exp_fit(self):
+        lm_pars = self.get('lm_pars', None)
+
+        fitter = self._mof_fitter_class(
+            self.mbobs_list,
+            'exp',
+            prior=self.exp_prior,
+            lm_pars=lm_pars,
+        )
+
+        for i in range(self['ntry']):
+            logger.debug('exp try: %d' % (i+1))
+
+            self._last_guess = get_stamp_guesses(
+                self.mbobs_list,
+                self['detband'],
+                'exp',
+                self.rng,
+                prior=self.exp_prior,
+            )
+
+            fitter.go(self._last_guess)
+
+            res = fitter.get_result()
+            if res['flags'] == 0:
+                break
+
+        self._exp_result = res
+
+    def __call__(self, mbobs_list, detband, model, rng, prior=None):
+        """
+        first try an exp fit
+        """
+        assert prior is not None
+
+        nband = len(mbobs_list[0])
+        if self._exp_result['flags'] == 0:
+            logger.info('guessing from exp fit')
+            nobj = len(mbobs_list)
+            allpars = self._exp_result['pars'].reshape(nobj, 5+nband)
+
+            # one extra for each object
+            guess = np.zeros((nobj, 6+nband))
+
+            for i in range(nobj):
+                mbo = mbobs_list[i]
+
+                pars = allpars[i]
+                # g1, g2 = get_shape_guess(pars[2], pars[3], 0.01)
+
+                guess[i, 0] = pars[0]
+                guess[i, 1] = pars[1]
+                guess[i, 2] = rng.uniform(low=-0.05, high=0.05)
+                guess[i, 3] = rng.uniform(low=-0.05, high=0.05)
+
+                T = pars[4]
+                if T < 0.005:
+                    T = 0.005
+                guess[i, 4] = T*(1.0 + rng.uniform(low=-0.05, high=0.05))
+
+                low = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
+                high = prior.fracdev_prior.mean + 0.1*prior.fracdev_prior.sigma
+                while True:
+                    fracdev_guess = rng.uniform(low=low, high=high)
+                    if 0 < fracdev_guess < 1:
+                        break
+
+                guess[i, 5] = fracdev_guess
+                for ib in range(nband):
+                    fac = (1.0 + rng.uniform(low=-0.05, high=0.05))
+                    guess[i, 6+ib] = pars[5+ib]*fac
+
+                fluxes = guess[i, 6:]
+                logic = np.isfinite(fluxes) & (fluxes > 0.0)
+                wgood, = np.where(logic)
+                if wgood.size != nband:
+                    logging.info('fixing bad flux '
+                                 'guesses: %s' % format_pars(fluxes))
+                    if wgood.size == 0:
+                        for iband, bobs in enumerate(mbo):
+                            wt = bobs[0].weight
+                            maxwt = wt.max()
+                            if maxwt <= 0.0:
+                                maxwt = 100.0
+                            psigma = np.sqrt(1.0/maxwt)
+                            fluxes[iband] = rng.uniform(
+                                low=psigma,
+                                high=5*psigma,
+                            )
+                    else:
+                        wbad, = np.where(~logic)
+                        fac = 1.0 + rng.uniform(
+                            low=-0.1,
+                            high=0.1,
+                            size=wbad.size,
+                        )
+                        fluxes[wbad] = fluxes[wgood].mean()*fac
+                    logging.info('new guesses: %s' % format_pars(fluxes))
+
+                ptup = (self['model'], i, format_pars(guess[i]))
+
+                logger.info('%s guess[%d]: %s' % ptup)
+
+            guess = guess.ravel()
+        else:
+            logger.info('not guessing from exp fit')
+            guess = get_stamp_guesses(
+                mbobs_list,
+                self['detband'],
+                self['model'],
+                self.rng,
+                prior=prior,
+            )
+
+        return guess
 
 
 def get_stamp_flux_guesses(list_of_obs, detband, model, rng, prior=None):
@@ -1802,7 +1951,7 @@ def get_weighted_moments(mbobs, fwhm=1.2):
         [0.0, 0.0, 0.0, 0.0, T, 1.0],
         'gauss',
     )
-    res=None
+    res = None
     for obslist in mbobs:
         for obs in obslist:
             res = wt.get_weighted_sums(obs, 1.e9, res=res)
