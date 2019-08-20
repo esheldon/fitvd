@@ -1231,8 +1231,8 @@ def get_stamp_guesses(list_of_obs,
         # print("guess T:", T)
         Tmeas = momres['T']
         T = 1.0/(1/Tmeas - 1/wt_T)
-        # if T < 0.0:
-        #     T = 0.025
+        if T < 0.0:
+            T = 0.025
 
         beg = i*npars_per
 
