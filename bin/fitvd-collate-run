@@ -1,0 +1,141 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import os
+import re
+import fitsio
+from fitvd import files
+import esutil as eu
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--run-config', required=True)
+parser.add_argument('--tile-configs', required=True, nargs='+')
+parser.add_argument('--extra', help='extra string for file name')
+
+matcher = re.compile('r[0-9][0-9][0-9][0-9]p[0-9][0-9]')
+
+
+def extract_short_tilename(tilename):
+    if matcher.search(tilename[-8:]) is not None:
+        return tilename[:-9]
+    else:
+        return tilename
+
+
+def add_tilename(data, tilename_full):
+
+    tilename = extract_short_tilename(tilename_full)
+
+    add_dt = [('tilename', 'S25')]
+
+    data = eu.numpy_util.add_fields(data, add_dt)
+    data['tilename'] = tilename
+    return data
+
+
+def add_run(data, run):
+    add_dt = [('run', 'S25')]
+
+    data = eu.numpy_util.add_fields(data, add_dt)
+    data['run'] = run
+    return data
+
+
+def check_meta(meta, this_meta):
+    """
+    just keep one but make sure the meta data agree
+    """
+    for v in ['ngmix_vers', 'mof_vers', 'fitvd_vers']:
+        assert this_meta[v] == meta[v]
+
+
+def get_data_old(fname, run, tilename):
+    print('reading:', fname)
+    with fitsio.FITS(fname) as fits:
+        model_fits = fits['model_fits'][:]
+        model_fits = add_tilename(model_fits, tilename)
+
+        if 'epochs_data' in fits:
+            epochs_data = fits['epochs_data'][:]
+            epochs_data = add_tilename(epochs_data, tilename)
+        else:
+            epochs_data = None
+
+        if 'fof_data' in fits:
+            fof_data = fits['fof_data'][:]
+            fof_data = add_tilename(fof_data, tilename)
+        else:
+            fof_data = None
+
+        meta_data = fits['meta_data'][:]
+        meta_data = add_tilename(meta_data, tilename)
+        meta_data = add_run(meta_data, run)
+
+    return {
+        'model_fits': model_fits,
+        'epochs_data': epochs_data,
+        'fof_data': fof_data,
+        'meta_data': meta_data,
+    }
+
+
+def get_data(fname, typ, run, tilename):
+    print('reading %s from %s' % (typ, fname))
+
+    data = fitsio.read(fname, ext=typ)
+
+    data = add_tilename(data, tilename)
+
+    if typ == 'meta_data':
+        data = add_run(data, run)
+
+    return data
+
+
+def main():
+    args = parser.parse_args()
+
+    bname = os.path.basename(args.run_config)
+    run = bname.replace('.yaml', '')
+
+    output_file = files.get_collated_file(run, extra=args.extra)
+
+    print('will write to:', output_file)
+    print('tile configs:', args.tile_configs)
+
+    tmpdir = files.get_tempdir()
+    meta_data = None
+
+    with files.StagedOutFile(output_file, tmpdir=tmpdir) as sf:
+        with fitsio.FITS(sf.path, 'rw', clobber=True) as fits:
+            print('temp file:', sf.path)
+
+            for typ in ['model_fits', 'epochs_data', 'fof_data', 'meta_data']:
+
+                for tile_conf_file in args.tile_configs:
+                    tile_conf = files.read_yaml(tile_conf_file)
+
+                    for tilename in tile_conf['tilenames']:
+                        fname = files.get_collated_file(run, tilename=tilename)
+
+                        data = get_data(fname, typ, run, tilename)
+
+                        if typ == 'meta_data':
+                            if meta_data is None:
+                                meta_data = data
+                            else:
+                                check_meta(meta_data, data)
+                        else:
+                            if typ not in fits:
+                                fits.write(data, extname=typ)
+                            else:
+                                fits[typ].append(data)
+
+                if typ == 'meta_data':
+                    fits.write(meta_data, extname='meta_data')
+
+
+if __name__ == '__main__':
+    main()
