@@ -28,7 +28,8 @@ def add_tilename(data, tilename_full):
 
     tilename = extract_short_tilename(tilename_full)
 
-    add_dt = [('tilename', 'S25')]
+    add_dt = [('tilename', 'S14')]
+    assert len(tilename) <= 14
 
     data = eu.numpy_util.add_fields(data, add_dt)
     data['tilename'] = tilename
