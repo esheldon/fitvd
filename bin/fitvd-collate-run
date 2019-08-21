@@ -51,45 +51,15 @@ def check_meta(meta, this_meta):
         assert this_meta[v] == meta[v]
 
 
-def get_data_old(fname, run, tilename):
-    print('reading:', fname)
-    with fitsio.FITS(fname) as fits:
-        model_fits = fits['model_fits'][:]
-        model_fits = add_tilename(model_fits, tilename)
-
-        if 'epochs_data' in fits:
-            epochs_data = fits['epochs_data'][:]
-            epochs_data = add_tilename(epochs_data, tilename)
-        else:
-            epochs_data = None
-
-        if 'fof_data' in fits:
-            fof_data = fits['fof_data'][:]
-            fof_data = add_tilename(fof_data, tilename)
-        else:
-            fof_data = None
-
-        meta_data = fits['meta_data'][:]
-        meta_data = add_tilename(meta_data, tilename)
-        meta_data = add_run(meta_data, run)
-
-    return {
-        'model_fits': model_fits,
-        'epochs_data': epochs_data,
-        'fof_data': fof_data,
-        'meta_data': meta_data,
-    }
-
-
 def get_data(fname, typ, run, tilename):
     print('reading %s from %s' % (typ, fname))
 
     data = fitsio.read(fname, ext=typ)
 
-    data = add_tilename(data, tilename)
-
     if typ == 'meta_data':
         data = add_run(data, run)
+    else:
+        data = add_tilename(data, tilename)
 
     return data
 
