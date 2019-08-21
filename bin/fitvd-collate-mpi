@@ -68,7 +68,8 @@ def main():
 
         print('will write to:', output_file)
 
-        fof_file = files.get_fof_file(run, args.tilename)
+        fof_run = config.get('fof_run', run)
+        fof_file = files.get_fof_file(fof_run, args.tilename)
         nbrs, fofst = files.load_fofs(fof_file)
 
         fof_splits = split.get_splits_variable(
