@@ -115,12 +115,22 @@ def get_fof_file(run, tilename):
     )
 
 
-def get_collated_file(run, tilename):
+def get_collated_file(run, tilename=None, extra=None):
     """
     get the collated file name
     """
     split_dir = get_collated_dir(run)
-    fname = '%s-%s.fits' % (run, tilename)
+
+    parts = [run]
+    if tilename is not None:
+        parts.append(tilename)
+
+    if extra is not None:
+        parts.append(extra)
+
+    fname = '-'.join(parts)
+    fname = fname + '.fits'
+
     return os.path.join(
         split_dir,
         fname,
