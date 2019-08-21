@@ -113,7 +113,7 @@ class Processor(object):
             logger.debug('doing fits')
             output, epochs_data = self.fitter.go(
                 mbobs_list,
-                ntry=self.config['mof']['ntry'],
+                ntry=self.config['mof'].get('ntry', 1),
                 skip_fit=skip_fit,
             )
             if skip_fit:

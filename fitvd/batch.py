@@ -43,10 +43,6 @@ class ShellCollateBatch(dict):
         write the script to collate the files
         """
 
-        # if 'fofs' not in self.fit_conf:
-        #     meds_text = '--meds=%s' % self.meds_info[tilename][0]
-        # else:
-        #     meds_text = ''
         meds_text = ''
 
         text = _collate_script_template % {
@@ -105,10 +101,6 @@ class WQCollateBatch(ShellCollateBatch):
 
         job_name = 'collate-%s-%s' % (self['run'], tilename)
 
-        # if 'fofs' not in self.fit_conf:
-        #     meds_text = '--meds=%s' % self.meds_info[tilename][0]
-        # else:
-        #     meds_text = ''
         meds_text = ''
 
         text = _collate_wq_template % {
@@ -140,6 +132,9 @@ class FoFBatchBase(dict):
 
         self.run_conf = files.read_yaml(self.args.run_config)
         self.tile_conf = files.read_yaml(self.args.tile_config)
+
+        if self.run_conf.get('fof_run', None) is not None:
+            raise ValueError('dont try to make fofs when inputting a fof run')
 
         self['fit_config'] = os.path.abspath(
             os.path.expandvars(
@@ -367,15 +362,8 @@ class ShellBatch(dict):
         d['meds_files'] = meds_files
         d['logfile'] = os.path.abspath(log_file)
 
-        fof_file = files.get_fof_file(self['run'], tilename)
+        fof_file = self._get_fof_file(tilename)
         d['fofs_text'] = '--fofs=%s' % fof_file
-        """
-        if 'fofs' in self.fit_conf:
-            fof_file = files.get_fof_file(self['run'], tilename)
-            d['fofs_text'] = '--fofs=%s' % fof_file
-        else:
-            d['fofs_text'] = ''
-        """
 
         if 'model_pars_run' in self:
             pars_file = files.get_collated_file(
@@ -419,20 +407,14 @@ class ShellBatch(dict):
         self.meds_info = _get_meds_file_info(self, self.tile_conf)
 
     def _get_fofs(self, tilename):
-        fof_file = files.get_fof_file(self['run'], tilename)
+        fof_file = self._get_fof_file(tilename)
         nbrs, fofst = files.load_fofs(fof_file)
-        """
-        if 'fofs' in self.fit_conf:
-            fof_file = files.get_fof_file(self['run'], tilename)
-            nbrs, fofst = files.load_fofs(fof_file)
-        else:
-            meds_file = self.meds_info[tilename][0]
-            m = meds.MEDS(meds_file)
-            cat = m.get_cat()
-            fofst = fofs.make_singleton_fofs(cat)
-        """
-
         return fofst
+
+    def _get_fof_file(self, tilename):
+        run = self['run']
+        fof_run = self.get('fof_run', run)
+        return files.get_fof_file(fof_run, tilename)
 
     def _set_rng(self):
         self.rng = np.random.RandomState(self['seed'])
@@ -638,15 +620,9 @@ class CondorBatch(ShellBatch):
         meds_files = self.meds_info[tilename]
         meds_files = ' '.join(meds_files)
 
-        fof_file = files.get_fof_file(self['run'], tilename)
+        fof_file = self._get_fof_file(tilename)
         fofs_text = '--fofs=%s' % fof_file
-        """
-        if 'fofs' in self.fit_conf:
-            fof_file = files.get_fof_file(self['run'], tilename)
-            fofs_text = '--fofs=%s' % fof_file
-        else:
-            fofs_text = ''
-        """
+
         d = {
             'meds_files': meds_files,
             'fofs_text': fofs_text,
