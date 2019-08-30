@@ -512,6 +512,12 @@ class MOFFitter(FitterBase):
 
     def _get_output(self, fitter, mbobs_list, main_res, reslist):
 
+        if 'ngmix' in self['parspace']:
+            weight_fwhm = self['gap']['weight_fwhm']
+            dogap = True
+        else:
+            dogap = False
+
         nobj = len(mbobs_list)
         output = self._get_struct(nobj)
 
@@ -549,7 +555,6 @@ class MOFFitter(FitterBase):
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
 
-            weight_fwhm = self['gap']['weight_fwhm']
 
             for i, res in enumerate(reslist):
                 t = output[i]
@@ -581,20 +586,22 @@ class MOFFitter(FitterBase):
 
                     t[n('mag')][band] = get_mag(tflux, zp)
 
-                    gm = fitter.get_gmix(i, band=band)
-                    for obs in obslist:
-                        obs.set_gmix(gm)
+                    if 'ngmix' in self['parspace']:
+                        gm = fitter.get_gmix(i, band=band)
+                        for obs in obslist:
+                            obs.set_gmix(gm)
 
-                    gap_flux = gm.get_gaussap_flux(fwhm=weight_fwhm)
+                    if dogap:
+                        gap_flux = gm.get_gaussap_flux(fwhm=weight_fwhm)
 
-                    if tflux > 0:
-                        efac = gap_flux/tflux
-                    else:
-                        efac = 1.0
+                        if tflux > 0:
+                            efac = gap_flux/tflux
+                        else:
+                            efac = 1.0
 
-                    t['gap_flux'][band] = gap_flux
-                    t['gap_flux_err'][band] = tflux_err*efac
-                    t['gap_mag'][band] = get_mag(gap_flux, zp)
+                        t['gap_flux'][band] = gap_flux
+                        t['gap_flux_err'][band] = tflux_err*efac
+                        t['gap_mag'][band] = get_mag(gap_flux, zp)
 
                 # smres = calc_spread_model(mbobs)
                 # t['spread_model_flags'] = smres['flags']
@@ -1388,8 +1395,8 @@ def get_stamp_guesses_gs(list_of_obs,
         if T is None:
             T = mbo[0][0].psf.gmix.get_T()*1.2
 
-        if T < 1.0e-6:
-            T = 1.0e-6
+        if T < 2.0e-6:
+            T = 2.0e-6
 
         hlr = 0.5*ngmix.moments.T_to_fwhm(T)
         if hlr > 0.11:
@@ -1406,7 +1413,7 @@ def get_stamp_guesses_gs(list_of_obs,
         guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
 
         # half light radius
-        guess[beg+4] = hlr*(1.0 + rng.uniform(low=-0.05, high=0.05))
+        guess[beg+4] = hlr*(1.0 + rng.uniform(low=-0.1, high=0.1))
 
         if model == 'bdf':
             low = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
@@ -1432,6 +1439,8 @@ def get_stamp_guesses_gs(list_of_obs,
 
             guess[beg+flux_start+band] = flux_guess
 
+        ptup = (i, format_pars(guess[beg:beg+flux_start+band+1]))
+        logger.info('guess[%d]: %s' % ptup)
     return guess
 
 
