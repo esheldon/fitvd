@@ -58,67 +58,73 @@ class FitterBase(dict):
         if ppars.get('prior_from_mof', False):
             return None
 
-        # g
-        gp = ppars['g']
-        assert gp['type'] == "ba"
-        g_prior = self._get_prior_generic(gp)
-
-        if 'T' in ppars:
-            size_prior = self._get_prior_generic(ppars['T'])
-        elif 'hlr' in ppars:
-            size_prior = self._get_prior_generic(ppars['hlr'])
-        else:
-            raise ValueError('need T or hlr in priors')
-
-        flux_prior = self._get_prior_generic(ppars['flux'])
-
         # center
         cp = ppars['cen']
         assert cp['type'] == 'normal2d'
         cen_prior = self._get_prior_generic(cp)
 
+        # g
+        gp = ppars['g']
+        assert gp['type'] == "ba"
+        g_prior = self._get_prior_generic(gp)
+
         if 'bd' in conf['model']:
             assert 'fracdev' in ppars, \
                 'set fracdev prior for bdf and bd models'
-
-        if conf['model'] == 'bd':
-            assert 'logTratio' in ppars, "set logTratio prior for bd model"
             fp = ppars['fracdev']
-            logTratiop = ppars['logTratio']
-
-            fracdev_prior = self._get_prior_generic(fp)
-            logTratio_prior = self._get_prior_generic(logTratiop)
-
-            prior = PriorBDSep(
-                cen_prior,
-                g_prior,
-                size_prior,
-                logTratio_prior,
-                fracdev_prior,
-                [flux_prior]*self.nband,
-            )
-
-        elif conf['model'] == 'bdf':
-            fp = ppars['fracdev']
-
             fracdev_prior = self._get_prior_generic(fp)
 
-            prior = PriorBDFSep(
+        if conf['model'] == 'bdf' and 'flux_hlr' in ppars:
+            assert self.nband == 1, 'only 1 band for now'
+            fhp_fname = ppars['flux_hlr']
+            flux_hlr_prior = ngmix.gmix_ndim.GMixND(file=fhp_fname)
+            prior = COSMOSBDFJointPrior(
                 cen_prior,
                 g_prior,
-                size_prior,
                 fracdev_prior,
-                [flux_prior]*self.nband,
+                flux_hlr_prior,
             )
-
         else:
+            if 'T' in ppars:
+                size_prior = self._get_prior_generic(ppars['T'])
+            elif 'hlr' in ppars:
+                size_prior = self._get_prior_generic(ppars['hlr'])
+            else:
+                raise ValueError('need T or hlr in priors')
 
-            prior = PriorSimpleSep(
-                cen_prior,
-                g_prior,
-                size_prior,
-                [flux_prior]*self.nband,
-            )
+            flux_prior = self._get_prior_generic(ppars['flux'])
+
+            if conf['model'] == 'bd':
+                assert 'logTratio' in ppars, "set logTratio prior for bd model"
+                logTratiop = ppars['logTratio']
+                logTratio_prior = self._get_prior_generic(logTratiop)
+
+                prior = PriorBDSep(
+                    cen_prior,
+                    g_prior,
+                    size_prior,
+                    logTratio_prior,
+                    fracdev_prior,
+                    [flux_prior]*self.nband,
+                )
+
+            elif conf['model'] == 'bdf':
+                prior = PriorBDFSep(
+                    cen_prior,
+                    g_prior,
+                    size_prior,
+                    fracdev_prior,
+                    [flux_prior]*self.nband,
+                )
+
+            else:
+
+                prior = PriorSimpleSep(
+                    cen_prior,
+                    g_prior,
+                    size_prior,
+                    [flux_prior]*self.nband,
+                )
 
         return prior
 
@@ -556,7 +562,6 @@ class MOFFitter(FitterBase):
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
 
-
             for i, res in enumerate(reslist):
                 t = output[i]
                 mbobs = mbobs_list[i]
@@ -570,7 +575,11 @@ class MOFFitter(FitterBase):
                     if 'psf' in name:
                         t[name] = val
                     else:
+
                         nname = n(name)
+                        if nname == n('flux'):
+                            val = self._get_flux(val)
+
                         t[nname] = val
 
                         if 'pars_cov' in name:
@@ -583,6 +592,8 @@ class MOFFitter(FitterBase):
                     zp = meta['magzp_ref']
 
                     tflux = t[n('flux')][band]
+
+                    # TODO fix flux error for log pars
                     tflux_err = t[n('flux_err')][band]
 
                     t[n('mag')][band] = get_mag(tflux, zp)
@@ -626,6 +637,9 @@ class MOFFitter(FitterBase):
                 logger.info('%d perr: %s' % (i, estr))
 
         return output
+
+    def _get_flux(self, flux):
+        return flux
 
 
 class MOFFluxFitter(MOFFitter):
@@ -811,6 +825,9 @@ class MOFFitterGS(MOFFitter):
         return self._mof_fitter.make_image(
             iobj, band=band, obsnum=obsnum,
         )
+
+    def _get_flux(self, flux):
+        return 10.0**flux
 
     def _do_measure_all_psf_fluxes(self, mbobs_list):
         _measure_all_psf_fluxes_gs(mbobs_list)
@@ -1225,8 +1242,8 @@ def get_stamp_guesses(list_of_obs,
     wt_fwhm = 1.2
     wt_T = ngmix.moments.fwhm_to_T(wt_fwhm)
     for i, mbo in enumerate(list_of_obs):
-        detobslist = mbo[detband]
-        detmeta = detobslist.meta
+        # detobslist = mbo[detband]
+        # detmeta = detobslist.meta
         momres = get_weighted_moments(mbo, fwhm=wt_fwhm)
 
         # T = detmeta.get('Tsky', None)
@@ -1436,11 +1453,12 @@ def get_stamp_guesses_gs(list_of_obs,
             # scale = obslist[0].jacobian.scale
             # flux = band_meta['psf_flux']/scale**2
             flux = band_meta['psf_flux']
-            if flux < 0.01:
-                flux = 0.01
+            if flux < 1:
+                flux = 1.0
             flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-            guess[beg+flux_start+band] = flux_guess
+            # guess[beg+flux_start+band] = flux_guess
+            guess[beg+flux_start+band] = np.log10(flux_guess)
 
         ptup = (i, format_pars(guess[beg:beg+flux_start+band+1]))
         logger.info('guess[%d]: %s' % ptup)
@@ -1814,156 +1832,116 @@ def get_weighted_moments(mbobs, fwhm=1.2):
         [0.0, 0.0, 0.0, 0.0, T, 1.0],
         'gauss',
     )
-    res=None
+    res = None
     for obslist in mbobs:
         for obs in obslist:
             res = wt.get_weighted_sums(obs, 1.e9, res=res)
 
     return ngmix.gmix.get_weighted_moments_stats(res)
 
+
 class COSMOSBDFJointPrior(object):
-    def __init__(self, cen_prior, g_prior, fracdev_priors):
+    """
+    currently only one band
+    """
+    def __init__(self, cen_prior, g_prior, fracdev_prior, flux_hlr_prior):
         self.cen_prior = cen_prior
         self.g_prior = g_prior
         self.fracdev_prior = fracdev_prior
+        self.flux_hlr_prior = flux_hlr_prior
+        self.nband = 1
 
-        self._set_joint_loghlr_mag_prior()
+        self.set_bounds()
 
-    def _set_joint_loghlr_mag_prior(self):
-        weights = \
-            np.array([0.05101931, 0.01402714, 0.04049389, 0.00530175, 0.02668155,
-                      0.00854679, 0.03082966, 0.01554659, 0.03334884, 0.01220474,
-                      0.03521017, 0.04237359, 0.03451105, 0.02461952, 0.01045618,
-                      0.00574592, 0.03096683, 0.04509507, 0.01661202, 0.03537526,
-                      0.04143651, 0.00918538, 0.01913584, 0.02955745, 0.01595311,
-                      0.04145067, 0.01867435, 0.04170369, 0.04713763, 0.01227214,
-                      0.01720704, 0.04708989, 0.02908746, 0.01806372, 0.00265434,
-                      0.02216079, 0.02210114, 0.00621412, 0.02857672, 0.01137216])
-        means = \
-            np.array([[25.70685937, -0.80649402],
-                      [22.56409613, -0.7406264 ],
-                      [24.59070096, -0.62594816],
-                      [19.69110209, -0.22806841],
-                      [23.34726635, -0.49340984],
-                      [20.454889  , -0.28811599],
-                      [25.34417093, -1.15814368],
-                      [25.70132604, -1.43560809],
-                      [23.99889457, -0.66441464],
-                      [21.60289279, -0.31137992],
-                      [26.01629184, -1.2270701 ],
-                      [25.14106208, -0.60586383],
-                      [24.33286305, -0.72280981],
-                      [22.97387524, -0.48455075],
-                      [25.13178939, -1.47350844],
-                      [26.08854422, -2.06566477],
-                      [24.28771122, -0.45229094],
-                      [25.18558881, -0.86706555],
-                      [23.75095395, -0.95370708],
-                      [24.59413889, -0.9394012 ],
-                      [25.7110407 , -1.08537362],
-                      [21.78472904, -0.56429632],
-                      [22.16405924, -0.38583706],
-                      [24.8387813 , -0.50825442],
-                      [26.20954036, -1.57670509],
-                      [25.477236  , -0.9154287 ],
-                      [23.20623943, -0.79781488],
-                      [25.93647829, -0.95721194],
-                      [25.42600757, -0.67962519],
-                      [21.08065413, -0.33477496],
-                      [26.2704245 , -1.09089696],
-                      [24.87349971, -0.77153255],
-                      [24.94845282, -1.0962352 ],
-                      [22.60317601, -0.41419314],
-                      [18.73692412, -0.10857686],
-                      [23.83995929, -0.41906768],
-                      [24.18589521, -0.97247889],
-                      [24.9747171 , -0.14720371],
-                      [23.63111172, -0.63868935],
-                      [24.45582263, -1.34497754]])
-        covars = \
-            np.array([[[ 1.20684485e-02, -1.22835240e-03],
-                       [-1.22835240e-03,  1.31100578e-02]],
-                      [[ 5.86731621e-02, -2.89986333e-03],
-                       [-2.89986333e-03,  4.79448012e-02]],
-                      [[ 1.22735869e-02, -2.82757898e-03],
-                       [-2.82757898e-03,  1.74285449e-02]],
-                      [[ 1.61955073e-01,  3.23795892e-03],
-                       [ 3.23795892e-03,  4.02829222e-02]],
-                      [[ 2.36298653e-02,  4.75991507e-03],
-                       [ 4.75991507e-03,  2.71395408e-02]],
-                      [[ 8.45180674e-02,  2.30970606e-03],
-                       [ 2.30970606e-03,  4.70386686e-02]],
-                      [[ 2.23991044e-02, -2.57814443e-03],
-                       [-2.57814443e-03,  1.79640601e-02]],
-                      [[ 3.66508128e-02, -2.33470683e-03],
-                       [-2.33470683e-03,  3.11547870e-02]],
-                      [[ 1.81398451e-02,  2.86162671e-03],
-                       [ 2.86162671e-03,  2.12887367e-02]],
-                      [[ 5.34290252e-02,  1.65337932e-02],
-                       [ 1.65337932e-02,  6.46673017e-02]],
-                      [[ 1.93550544e-02, -4.48142862e-04],
-                       [-4.48142862e-04,  1.84765974e-02]],
-                      [[ 1.48103523e-02,  1.77012139e-03],
-                       [ 1.77012139e-03,  1.58145375e-02]],
-                      [[ 1.37373483e-02, -1.66113064e-03],
-                       [-1.66113064e-03,  1.50141646e-02]],
-                      [[ 2.34372644e-02,  3.93129655e-03],
-                       [ 3.93129655e-03,  2.80583740e-02]],
-                      [[ 6.05855343e-02, -7.03672823e-03],
-                       [-7.03672823e-03,  4.96535370e-02]],
-                      [[ 2.62935064e-01,  1.48239078e-02],
-                       [ 1.48239078e-02,  1.83634927e-01]],
-                      [[ 2.78962353e-02,  1.49105861e-03],
-                       [ 1.49105861e-03,  1.65880129e-02]],
-                      [[ 1.38504385e-02,  1.01091514e-03],
-                       [ 1.01091514e-03,  1.48995691e-02]],
-                      [[ 3.96869077e-02,  4.99780225e-03],
-                       [ 4.99780225e-03,  3.82828416e-02]],
-                      [[ 1.78618030e-02,  1.35902120e-03],
-                       [ 1.35902120e-03,  2.37796283e-02]],
-                      [[ 1.45282624e-02,  1.41329838e-03],
-                       [ 1.41329838e-03,  1.64135155e-02]],
-                      [[ 5.76238619e-02, -8.50740311e-03],
-                       [-8.50740311e-03,  5.26386472e-02]],
-                      [[ 3.68010276e-02,  3.06936958e-03],
-                       [ 3.06936958e-03,  4.19941481e-02]],
-                      [[ 1.89526689e-02, -2.53676751e-03],
-                       [-2.53676751e-03,  1.77406248e-02]],
-                      [[ 5.75173278e-02,  8.42585775e-03],
-                       [ 8.42585775e-03,  4.50964678e-02]],
-                      [[ 1.18297451e-02,  1.51006627e-04],
-                       [ 1.51006627e-04,  1.15969157e-02]],
-                      [[ 4.00254373e-02,  4.18642141e-03],
-                       [ 4.18642141e-03,  5.03690167e-02]],
-                      [[ 1.38939229e-02, -4.24758891e-04],
-                       [-4.24758891e-04,  1.71462570e-02]],
-                      [[ 1.44349647e-02,  5.85730705e-04],
-                       [ 5.85730705e-04,  1.13164815e-02]],
-                      [[ 5.78477611e-02,  3.02389744e-04],
-                       [ 3.02389744e-04,  5.43903725e-02]],
-                      [[ 3.47393803e-02, -4.74525427e-03],
-                       [-4.74525427e-03,  4.28669405e-02]],
-                      [[ 1.36755972e-02,  3.38774852e-04],
-                       [ 3.38774852e-04,  1.68487792e-02]],
-                      [[ 2.42192890e-02,  1.33474931e-03],
-                       [ 1.33474931e-03,  2.28232972e-02]],
-                      [[ 2.74600801e-02,  8.38127370e-04],
-                       [ 8.38127370e-04,  2.11484390e-02]],
-                      [[ 4.88311106e-01, -1.31275366e-02],
-                       [-1.31275366e-02,  2.28661615e-02]],
-                      [[ 3.18739002e-02,  1.44897808e-03],
-                       [ 1.44897808e-03,  2.26601055e-02]],
-                      [[ 2.64843773e-02, -3.59880247e-03],
-                       [-3.59880247e-03,  2.23278683e-02]],
-                      [[ 1.39573390e+00, -1.26940684e-01],
-                       [-1.26940684e-01,  8.40833612e-02]],
-                      [[ 2.00021486e-02,  1.55421500e-03],
-                       [ 1.55421500e-03,  2.31388933e-02]],
-                      [[ 1.24308434e-01,  2.31726682e-02],
-                       [ 2.31726682e-02,  1.05266110e-01]]])
+    def fill_fdiff(self, pars, fdiff, **keys):
+        """
+        set sqrt(-2ln(p)) ~ (model-data)/err
+        """
 
-        self._gmnd = ngmix.gmix_ndim.GMixND(
-            weights=weights,
-            means=means,
-            covars=covars,
-        )
+        assert len(pars) == 7
+
+        index = 0
+
+        # center
+        fdiff1, fdiff2 = self.cen_prior.get_fdiff(pars[0], pars[1])
+
+        fdiff[index] = fdiff1
+        index += 1
+
+        fdiff[index] = fdiff2
+        index += 1
+
+        # g
+        fdiff[index] = self.g_prior.get_fdiff(pars[2], pars[3])
+        index += 1
+
+        # fracdev
+        fdiff[index] = self.fracdev_prior.get_fdiff(pars[5])
+        index += 1
+
+        # combined hlr and flux
+        flux_hlr = np.zeros(2)
+        flux_hlr[0] = pars[6]
+        flux_hlr[1] = pars[4]
+
+        lnp = self.flux_hlr_prior.get_lnprob_scalar(flux_hlr, **keys)
+        chi2 = -2*lnp
+        if chi2 < 0.0:
+            chi2 = 0.0
+
+        fdiff[index] = np.sqrt(chi2)
+        index += 1
+
+        return index
+
+    def sample(self, n=None, **unused_keys):
+        """
+        Get random samples
+        """
+
+        if n is None:
+            is_scalar = True
+            n = 1
+        else:
+            is_scalar = False
+
+        samples = np.zeros((n, 6+self.nband))
+
+        cen1, cen2 = self.cen_prior.sample(n)
+        g1, g2 = self.g_prior.sample2d(n)
+        fracdev = self.fracdev_prior.sample(n)
+
+        log10flux, log10hlr = self.flux_hlr_prior.sample(n)
+        samples[:, 0] = cen1
+        samples[:, 1] = cen2
+        samples[:, 2] = g1
+        samples[:, 3] = g2
+        samples[:, 4] = log10hlr
+        samples[:, 5] = fracdev
+        samples[:, 6] = log10flux
+
+        if is_scalar:
+            samples = samples[0, :]
+
+        return samples
+
+    def set_bounds(self):
+        """
+        set possibe bounds
+        """
+
+        fracdev_bounds = self.fracdev_prior.bounds
+
+        bounds = [
+            (None,None), # c1
+            (None,None), # c2
+            (None,None), # g1
+            (None,None), # g2
+            #  (None,None), # hlr
+            (-6.0, 4.0), # hlr
+            (fracdev_bounds[0], fracdev_bounds[1]),
+            (-3,6.0), # flux
+            # (0.5,6.0), # flux
+        ]
+
+        self.bounds = bounds
