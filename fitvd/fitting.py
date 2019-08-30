@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import logging
 import numpy as np
+from numpy import log10
 
 import esutil as eu
 import ngmix
@@ -1402,6 +1403,8 @@ def get_stamp_guesses_gs(list_of_obs,
         if hlr > 0.11:
             hlr = hlr - 0.1
 
+        log10hlr = np.log10(hlr)
+
         beg = i*npars_per
 
         # always close guess for center
@@ -1412,8 +1415,8 @@ def get_stamp_guesses_gs(list_of_obs,
         guess[beg+2] = rng.uniform(low=-0.05, high=0.05)
         guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
 
-        # half light radius
-        guess[beg+4] = hlr*(1.0 + rng.uniform(low=-0.1, high=0.1))
+        # log10 of half light radius
+        guess[beg+4] = log10hlr + rng.uniform(low=log10(0.9), high=log10(1.1))
 
         if model == 'bdf':
             low = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
