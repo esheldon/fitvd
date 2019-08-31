@@ -271,6 +271,7 @@ class MOFFitter(FitterBase):
                     mofc['model'],
                     prior=self.mof_prior,
                     lm_pars=lm_pars,
+                    use_logpars=self['mof']['use_logpars'],
                 )
                 if skip_fit:
                     # we use a and expect the caller to set the flag
@@ -289,6 +290,7 @@ class MOFFitter(FitterBase):
                             mofc['model'],
                             self.rng,
                             prior=self.mof_prior,
+                            use_logpars=self['mof']['use_logpars'],
                         )
 
                         fitter.go(guess)
@@ -827,7 +829,10 @@ class MOFFitterGS(MOFFitter):
         )
 
     def _get_flux(self, flux):
-        return 10.0**flux
+        if self['mof']['use_logpars']:
+            return 10.0**flux
+        else:
+            return flux
 
     def _do_measure_all_psf_fluxes(self, mbobs_list):
         _measure_all_psf_fluxes_gs(mbobs_list)
@@ -1218,12 +1223,15 @@ def get_stamp_guesses(list_of_obs,
                       detband,
                       model,
                       rng,
-                      prior=None):
+                      prior=None,
+                      use_logpars=False):
     """
     get a guess based on metadata in the obs
 
     T guess is gotten from detband
     """
+
+    assert use_logpars is False
 
     nband = len(list_of_obs[0])
 
@@ -1384,7 +1392,9 @@ def get_stamp_guesses_gs(list_of_obs,
                          detband,
                          model,
                          rng,
-                         prior=None):
+                         logpars=False,
+                         prior=None,
+                         use_logpars=False):
     """
     get a guess based on metadata in the obs
 
@@ -1420,8 +1430,6 @@ def get_stamp_guesses_gs(list_of_obs,
         if hlr > 0.11:
             hlr = hlr - 0.1
 
-        log10hlr = np.log10(hlr)
-
         beg = i*npars_per
 
         # always close guess for center
@@ -1433,7 +1441,12 @@ def get_stamp_guesses_gs(list_of_obs,
         guess[beg+3] = rng.uniform(low=-0.05, high=0.05)
 
         # log10 of half light radius
-        guess[beg+4] = log10hlr + rng.uniform(low=log10(0.9), high=log10(1.1))
+        if use_logpars:
+            log10hlr = np.log10(hlr)
+            lowval, highval = log10(0.9), log10(1.1)
+            guess[beg+4] = log10hlr + rng.uniform(low=lowval, high=highval)
+        else:
+            guess[beg+4] = hlr*(1 + rng.uniform(low=-0.1, high=0.1))
 
         if model == 'bdf':
             low = prior.fracdev_prior.mean - 0.1*prior.fracdev_prior.sigma
@@ -1457,8 +1470,10 @@ def get_stamp_guesses_gs(list_of_obs,
                 flux = 1.0
             flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
-            # guess[beg+flux_start+band] = flux_guess
-            guess[beg+flux_start+band] = np.log10(flux_guess)
+            if use_logpars:
+                guess[beg+flux_start+band] = np.log10(flux_guess)
+            else:
+                guess[beg+flux_start+band] = flux_guess
 
         ptup = (i, format_pars(guess[beg:beg+flux_start+band+1]))
         logger.info('guess[%d]: %s' % ptup)
@@ -1933,15 +1948,15 @@ class COSMOSBDFJointPrior(object):
         fracdev_bounds = self.fracdev_prior.bounds
 
         bounds = [
-            (None,None), # c1
-            (None,None), # c2
-            (None,None), # g1
-            (None,None), # g2
-            #  (None,None), # hlr
-            (-6.0, 4.0), # hlr
+            (None, None),  # c1
+            (None, None),  # c2
+            (None, None),  # g1
+            (None, None),  # g2
+            #  (None,None),  # hlr
+            (-6.0, 4.0),  # hlr
             (fracdev_bounds[0], fracdev_bounds[1]),
-            (-3,6.0), # flux
-            # (0.5,6.0), # flux
+            (-3, 6.0),  # flux
+            # (0.5,6.0),  # flux
         ]
 
         self.bounds = bounds

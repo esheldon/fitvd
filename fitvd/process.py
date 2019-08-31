@@ -499,28 +499,6 @@ class Processor(object):
 
         return new_mbobs, 0
 
-    def _sample_fake(self, conf):
-        if isinstance(conf, dict):
-            if conf['type'] == 'uniform':
-                rng = conf['range']
-                val = self.rng.uniform(
-                    low=rng[0],
-                    high=rng[1],
-                )
-            elif conf['type'] == 'log-uniform':
-                rng = conf['range']
-                logrng = [np.log10(rng[0]), np.log10(rng[1])]
-                logvals = self.rng.uniform(
-                    low=logrng[0],
-                    high=logrng[1],
-                )
-                val = 10.0**logvals
-
-        else:
-            val = conf
-
-        return val
-
     def _inject_fake_objects(self, mbobs):
         """
         inject a simple model for quick tests
@@ -896,6 +874,9 @@ class Processor(object):
             logger.info(
                 'combined val: %d' % (self.config['image_flagvals_to_mask']),
             )
+
+        self.config['mof']['use_logpars'] = \
+            self.config['mof'].get('use_logpars', False)
 
         if 'inject' in self.config:
             iconf = self.config['inject']
