@@ -359,7 +359,7 @@ class Processor(object):
         # out lots of the stamp but its ok
         mbobs.meta['badpix_frac'] = util.get_badpix_frac(mbobs)
 
-        if 'inject' in self.config and self.config['inject']['do_inject']:
+        if 'inject' in self.config:
             mbobs = self._inject_fake_objects(mbobs)
 
         mbobs, flags = self._set_weight(mbobs, index)
@@ -371,21 +371,12 @@ class Processor(object):
             if flags != 0:
                 return None, flags
 
-        """
-        if 'flux' in self.config['parspace']:
-            mname = self.config['mof']['model']
-            name = '%s_pars' % mname
-            # mbobs.meta['input_model_pars'] = \
-            #     self.model_data[name][index].copy()
-            # mbobs.meta['input_flags'] = \
-                self.model_data['flags'][index].copy()
-        """
-
         if hasattr(self, 'offsets'):
             self._add_offsets(mbobs, index)
 
         self._add_meta(mbobs, index)
 
+        # always do this after injection of simulated objects
         if 'ngmix' in self.config['parspace']:
             self._rescale_images_for_ngmix(mbobs)
 
@@ -530,139 +521,45 @@ class Processor(object):
 
         return val
 
-    def _inject_fake_objects_old(self, mbobs):
-        """
-        inject a simple model for quick tests
-        """
-        import galsim
-
-        iconf = self.config['inject']
-
-        model_name = iconf['model']
-
-        flux = self._sample_fake(iconf['flux'])
-        hlr = self._sample_fake(iconf['hlr'])
-
-        if model_name == 'exp':
-            model0 = galsim.Exponential(
-                half_light_radius=hlr,
-                flux=flux,
-            )
-
-        elif model_name == 'bdf':
-
-            fracdev = self._sample_fake(iconf['fracdev'])
-
-            eobj = galsim.Exponential(
-                half_light_radius=hlr,
-                flux=flux*(1-fracdev),
-            )
-            dobj = galsim.DeVaucouleurs(
-                half_light_radius=hlr*iconf['dev_hlr_ratio'],
-                flux=flux*fracdev,
-            )
-
-            model0 = galsim.Add(eobj, dobj)
-        else:
-            raise ValueError('bad model: "%s"' % model_name)
-
-        if 'psf' in iconf:
-            psf_model = galsim.Gaussian(
-                fwhm=iconf['psf']['fwhm'],
-            )
-            method = 'fft'
-        else:
-            psf_model = None
-            method = 'no_pixel'
-
-        Tfake = ngmix.moments.fwhm_to_T(hlr/0.5)
-
-        for obslist in mbobs:
-            obslist.meta['Tsky'] = Tfake
-            for obs in obslist:
-
-                jac = obs.jacobian
-                ccen = (np.array(obs.image.shape)-1.0)/2.0
-                voffset, uoffset = jac.get_vu(ccen[0], ccen[1])
-                model = model0.shift(-uoffset, -voffset)
-
-                gsimage = galsim.Image(
-                    obs.image.copy(),
-                    wcs=jac.get_galsim_wcs(),
-                )
-
-                if psf_model is None:
-                    normpsf = obs.psf.image/obs.psf.image.sum()
-                    psf_gsimage = galsim.Image(
-                        normpsf,
-                        wcs=obs.psf.jacobian.get_galsim_wcs(),
-                    )
-                    psf_to_conv = galsim.InterpolatedImage(
-                        psf_gsimage,
-                        x_interpolant='lanczos15',
-                    )
-                    obs.psf.image = normpsf
-
-                else:
-
-                    pshape = obs.psf.image.shape
-                    psf_gsimage = psf_model.drawImage(
-                        nx=pshape[1],
-                        ny=pshape[0],
-                        wcs=obs.psf.jacobian.get_galsim_wcs(),
-                    )
-
-                    psf_to_conv = psf_model
-                    obs.psf.image = psf_gsimage.array
-
-                tmodel = galsim.Convolve(
-                    model,
-                    psf_to_conv,
-                )
-
-                tmodel.drawImage(
-                    image=gsimage,
-                    method=method,
-                )
-
-                image = gsimage.array
-
-                wtmax = obs.weight.max()
-                err = np.sqrt(1.0/wtmax)
-
-                image += self.rng.normal(
-                    scale=err,
-                    size=image.shape,
-                )
-
-                obs.image = image
-        return mbobs
-
     def _inject_fake_objects(self, mbobs):
         """
         inject a simple model for quick tests
         """
 
-        # sim = StarSim(self.rng)
-        sim = MixSim(self.rng, 4, 0.5)
-
-        Tfake = sim._hlr
+        sim = self.sim
 
         new_mbobs = ngmix.MultiBandObsList()
         new_mbobs.meta.update(mbobs.meta)
 
-        for obslist in mbobs:
-            new_obslist = ngmix.ObsList()
-            new_obslist.meta.update(obslist.meta)
+        if self.simtype == 'cosmos':
+            obj, Tsky = sim.make_object()
+            print(obj, Tsky)
+            for obslist in mbobs:
+                new_obslist = ngmix.ObsList()
+                new_obslist.meta.update(obslist.meta)
 
-            new_obslist.meta['Tsky'] = Tfake
-            for obs in obslist:
-                noise = np.sqrt(1.0/obs.weight.max())
-                new_obs = sim.get_obs(noise)
-                new_obs.meta.update(obs.meta)
-                new_obslist.append(new_obs)
+                for obs in obslist:
+                    new_obs = sim.get_obs(obs, obj)
+                    new_obs.meta['Tsky'] = Tsky
+                    new_obslist.append(new_obs)
 
-            new_mbobs.append(new_obslist)
+                new_mbobs.append(new_obslist)
+
+        else:
+            Tfake = sim._hlr
+
+            for obslist in mbobs:
+                new_obslist = ngmix.ObsList()
+                new_obslist.meta.update(obslist.meta)
+
+                new_obslist.meta['Tsky'] = Tfake
+                for obs in obslist:
+                    noise = np.sqrt(1.0/obs.weight.max())
+                    new_obs = sim.get_obs(noise)
+                    new_obs.meta.update(obs.meta)
+                    new_obslist.append(new_obs)
+
+                new_mbobs.append(new_obslist)
 
         return new_mbobs
 
@@ -1000,6 +897,18 @@ class Processor(object):
                 'combined val: %d' % (self.config['image_flagvals_to_mask']),
             )
 
+        if 'inject' in self.config:
+            iconf = self.config['inject']
+            self.simtype = iconf['type']
+            if self.simtype == 'cosmos':
+                self.sim = COSMOSSim(self.rng, iconf)
+            elif self.simtype == 'stars':
+                self.sim = StarSim(self.rng)
+            elif self.simtype == 'mix':
+                self.sim = MixSim(self.rng, 4, 0.5)
+            else:
+                raise ValueError('bad sim type: %s' % self.simtype)
+
     def _set_fitter(self):
         """
         currently only MOF
@@ -1255,3 +1164,149 @@ class MixSim(StarSim):
         if val < self._rate:
             obj = obj.dilate(self._size_fac)
         return psf, obj
+
+
+class COSMOSSim(dict):
+    def __init__(self, rng, conf):
+        self.update(conf)
+        self.interp = 'lanczos15'
+
+        self._rng = rng
+
+        assert 'stars' in self or 'galaxies' in self
+
+        if 'stars' in self:
+            self.stars = fitsio.read(self['stars'])
+            self.nstars = self.stars.size
+        else:
+            self.stars = None
+            self.nstars = 0
+
+        if 'galaxies' in self:
+            self.galaxies = fitsio.read(self['galaxies'])
+            self.ngalaxies = self.galaxies.size
+        else:
+            self.galaxies = None
+            self.ngalaxies = 0
+
+        ntot = self.nstars + self.ngalaxies
+        self.frac_stars = self.nstars/ntot
+        self.frac_gals = self.ngalaxies/ntot
+
+    def get_obs(self, obs, obj):
+
+        im = self._get_image(obs, obj)
+
+        new_obs = obs.copy()
+
+        new_obs.image = im
+        return new_obs
+
+    def _get_image(self, obs, obj0):
+        import galsim
+
+        psf_ii = self._get_interpolated_psf(obs)
+        obj = galsim.Convolve(obj0, psf_ii)
+
+        im = self._do_draw(obs, obj)
+
+        wt = obs.weight
+        w = np.where(wt <= 0.0)
+        if w[0].size == wt.size:
+            raise ValueError('cannot add fake noise, all weight 0')
+
+        if w[0].size > 0:
+            wt = obs.weight.copy()
+            wt[w] = wt.max()
+
+        err = np.sqrt(1.0/wt)
+
+        im += self._rng.normal(size=im.shape)*err
+
+        return im
+
+    def make_object(self):
+
+        r = self._rng.uniform(low=0, high=1)
+        if r < self.frac_stars:
+            obj = self._make_star()
+            Tsky = 0.025
+        else:
+            obj, hlr = self._make_galaxy()
+            Tsky = hlr**2
+        return obj, Tsky
+
+    def _make_star(self):
+        import galsim
+
+        ind = self._rng.randint(0, self.stars.size)
+        flux = self.stars['flux'][ind]
+
+        return galsim.Gaussian(
+            fwhm=1.0e-6,
+            flux=flux,
+        )
+
+    def _make_galaxy(self):
+        import galsim
+
+        ind = self._rng.randint(0, self.galaxies.size)
+        flux = self.galaxies['flux'][ind]
+        hlr = self.galaxies['hlr'][ind]
+        fracdev = self.galaxies['fracdev'][ind]
+
+        disk = galsim.Exponential(
+            half_light_radius=hlr,
+            flux=flux*(1-fracdev),
+        )
+        bulge = galsim.Exponential(
+            half_light_radius=hlr,
+            flux=flux*fracdev,
+        )
+
+        return galsim.Sum(disk, bulge), hlr
+
+    def _do_draw(self, obs, obj):
+        jac = obs.jacobian
+
+        nrow, ncol = obs.image.shape
+
+        wcs = jac.get_galsim_wcs()
+
+        # note reverse for galsim
+        canonical_center = (np.array((ncol, nrow))-1.0)/2.0
+        jrow, jcol = jac.get_cen()
+        offset = (jcol, jrow) - canonical_center
+
+        im = obj.drawImage(
+            nx=ncol,
+            ny=nrow,
+            wcs=wcs,
+            offset=offset,
+            method='no_pixel',  # pixel is assumed to be in psf
+        ).array
+
+        return im
+
+    def _get_interpolated_psf(self, obs):
+        import galsim
+        psf_jac = obs.psf.jacobian
+        psf_im = obs.psf.image.copy()
+
+        psf_im *= 1.0/psf_im.sum()
+
+        nrow, ncol = psf_im.shape
+        canonical_center = (np.array((ncol, nrow))-1.0)/2.0
+        jrow, jcol = psf_jac.get_cen()
+        offset = (jcol, jrow) - canonical_center
+
+        psf_gsimage = galsim.Image(
+            psf_im,
+            wcs=obs.psf.jacobian.get_galsim_wcs(),
+        )
+
+        return galsim.InterpolatedImage(
+            psf_gsimage,
+            offset=offset,
+            x_interpolant=self.interp,
+        )
