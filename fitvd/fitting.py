@@ -452,6 +452,7 @@ class MOFFitter(FitterBase):
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
+            (n('deblend_flags'), 'i4'),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
@@ -560,6 +561,16 @@ class MOFFitter(FitterBase):
 
                 tflux = t[pn('flux')][band].clip(min=0.001)
                 t[pn('mag')][band] = get_mag(tflux, zp)
+
+        for i, res in enumerate(reslist):
+            t = output[i]
+            for name in ['psf_g', 'psf_T']:
+                if name in res:
+                    t[name] = res[name]
+            for name in ['deblend_flags']:
+                if name in res:
+                    t[n(name)] = res[name]
+
 
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
@@ -802,6 +813,7 @@ class MOFFluxFitter(MOFFitter):
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4', nbtup),
+            (n('deblend_flags'), 'i4'),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
@@ -871,6 +883,7 @@ class MOFFitterGS(MOFFitter):
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
+            (n('deblend_flags'), 'i4'),
             (n('ntry'), 'i2'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
@@ -1048,6 +1061,7 @@ class MOFFluxFitterGS(MOFFitterGS):
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
             (n('flags'), 'i4'),
+            (n('deblend_flags'), 'i4'),
             (n('nfev'), 'i4'),
             (n('s2n'), 'f8'),
             (n('pars'), 'f8', npars),
