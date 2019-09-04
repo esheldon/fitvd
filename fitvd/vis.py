@@ -100,7 +100,8 @@ def compare_models(mbobs_list, fitter, fofid, output, show=False, save=False):
                     fname = 'compare-fof%06d-%d-band%d-%d.png' % \
                         (fofid, id, band, obsnum)
                     print(fname)
-                    plt.write_img(1500, 1500*2.0/3.0, fname)
+                    # plt.write_img(1500, 1500*2.0/3.0, fname)
+                    plt.write_img(800, 800*2.0/3.0, fname)
 
 
 def make_rgb(mbobs):
@@ -369,7 +370,8 @@ def compare_images(im1_in, im2_in, wt_in, **keys):
     # print('noiseval:', noiseval, 'std resid:', resid.std(), 'noise std:',
     #       noise.std())
 
-    im2 = im2_in + noise
+    # im2 = im2_in + noise
+    im2 = im2_in
 
     maxval = max(im1_in.max(), im2.max())
     minval = 0.1*noiseval

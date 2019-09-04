@@ -796,7 +796,7 @@ class Processor(object):
             mof_fitter = self.fitter.get_mof_fitter()
             if mof_fitter is not None:
                 res = mof_fitter.get_result()
-                if res['flags'] == 0:
+                if np.all(res['flags']) == 0:
                     vis.compare_models(mbobs_list, mof_fitter, fofid, output,
                                        show=args.show, save=args.save)
         except RuntimeError:
