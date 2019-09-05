@@ -329,10 +329,7 @@ class MOFFitter(FitterBase):
             }
 
         if dofit:
-            if res['main_flags'] != 0:
-                reslist = None
-            else:
-                reslist = fitter.get_result_list()
+            reslist = fitter.get_result_list()
 
             data = self._get_output(
                 fitter,
@@ -571,7 +568,6 @@ class MOFFitter(FitterBase):
                 if name in res:
                     t[n(name)] = res[name]
 
-
         # model flags will remain at NO_ATTEMPT
         if main_res['main_flags'] == 0:
 
@@ -752,10 +748,7 @@ class MOFFluxFitter(MOFFitter):
                 'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
             }
 
-        if res['main_flags'] != 0:
-            reslist = None
-        else:
-            reslist = fitter.get_result_list()
+        reslist = fitter.get_result_list()
 
         data = self._get_output(
             fitter,
@@ -1007,10 +1000,7 @@ class MOFFluxFitterGS(MOFFitterGS):
                 'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
             }
 
-        if res['main_flags'] != 0:
-            reslist = None
-        else:
-            reslist = fitter.get_result_list()
+        reslist = fitter.get_result_list()
 
         data = self._get_output(
             fitter,
