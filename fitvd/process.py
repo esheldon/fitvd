@@ -171,7 +171,8 @@ class Processor(object):
         output['dec'] = m['dec'][indices]
         output['fof_id'] = fofid
         output['fof_size'] = output.size
-        output['mask_flags'] = fofs['mask_flags']
+        if 'mask_flags' in fofs.dtype.names:
+            output['mask_flags'] = fofs['mask_flags']
 
         return output
 
@@ -318,6 +319,7 @@ class Processor(object):
             if len(obslist) == 0:
                 return None, procflags.NO_DATA
 
+
         if self.config['skip_first_epoch']:
             mbobs, flags = self._remove_first_epoch(mbobs)
             if flags != 0:
@@ -380,6 +382,14 @@ class Processor(object):
         if 'ngmix' in self.config['parspace']:
             self._rescale_images_for_ngmix(mbobs)
 
+        # note doing this after rescaling because the deblender was run
+        # with scaling the images
+        if 'subtract_neighbors' in self.config['mof']:
+            coaddseg = self.mb_meds.mlist[0].get_cutout(index, 0, type='seg')
+            coaddim = self.mb_meds.mlist[0].get_cutout(index, 0)
+            self._subtract_neighbors(mbobs, coaddseg, coaddim, index,
+                                     show=False)
+
         return mbobs, 0
 
     def _rescale_images_for_ngmix(self, mbobs):
@@ -388,8 +398,15 @@ class Processor(object):
             for obs in obslist:
                 pixel_scale2 = obs.jacobian.get_scale()**2
                 pixel_scale4 = pixel_scale2*pixel_scale2
-                obs.image *= 1/pixel_scale2
-                obs.weight *= pixel_scale4
+
+                image = obs.image
+                weight = obs.weight
+
+                image *= 1/pixel_scale2
+                weight *= pixel_scale4
+
+                obs.set_image(image, update_pixels=False)
+                obs.set_weight(weight)
 
     def _add_meta(self, mbobs, index):
         for band, obslist in enumerate(mbobs):
@@ -700,6 +717,161 @@ class Processor(object):
 
         return new_mbobs, 0
 
+    def _subtract_neighbors(self, mbobs, coaddseg, coaddim, index,
+                            show=False):
+        """
+        subtract neighbors from the images
+
+        The seg map of the coadd is used to determine which objects should be
+        subtracted.
+
+        Because not all object may be in the input model parameters, there can
+        be pixels in the image that are associated with an object but the
+        object cannot be subtracted.  If this is a possibility, you should
+        use uberseg.
+        """
+        from ngmix.gexceptions import BootPSFFailure
+        from copy import deepcopy
+
+        logger.info('subtracting neighbors')
+        logger.info('fitting psfs')
+        try:
+            fitting.fit_all_psfs([mbobs], self.config['mof']['psf'])
+        except BootPSFFailure as err:
+            logger.info(str(err))
+            # We failed, so just get any fit so we can proceed.  This should be
+            # exceedingly rare.  Note we don't refit if a gmix is present, so
+            # this will just pick up the failure
+
+            pconf = deepcopy(self.config['mof']['psf'])
+            pconf['model'] = 'gauss'
+            pconf['lm_pars'] = {
+                'maxfev': 2000,
+                'ftol': 1.0e-5,
+                'xtol': 1.0e-5,
+            }
+            fitting.fit_all_psfs([mbobs], pconf)
+
+        nband = len(mbobs)
+
+        # assume all bands have the same seg map, and that the relevant
+        # observation is in slot 0, the coadd
+
+        number = self.mb_meds.mlist[0]['number'][index]
+
+        if False:
+            # import images
+            import fofx
+            wthis = np.where(coaddseg == number)
+            assert wthis[0].size > 0
+
+            plt = fofx.plot_seg(coaddseg)
+            plt.write_img(800, 800, '/astro/u/esheldon/www/tmp/plots/tmp.png')
+            # images.view(seg, file='/astro/u/esheldon/www/tmp/plots/tmp.png')
+
+        w = np.where(
+            (coaddseg != 0)
+            &
+            (coaddseg != number)
+        )
+
+        if w[0].size > 0:
+            logger.info('found %d pixels associated with other '
+                        'objects' % w[0].size)
+
+            nbr_numbers = np.unique(coaddseg[w])
+            logger.info('numbers to subtract: %s' % str(nbr_numbers))
+
+            # match to the model parameters.  Note we have removed those
+            # that did not have fits
+
+            mdata = self.model_data
+            mnbr, mpars = eu.numpy_util.match(nbr_numbers, mdata['number'])
+            logger.info('matched %s' % str(mpars))
+            if mnbr.size > 0:
+                # we can subtract neighbors
+                # for now assume the meds file is sorted by number
+                nbr_numbers = nbr_numbers[mnbr]
+
+                # collect all the gmixes, pre-psf
+                gmixes = []
+                for i in range(mpars.size):
+                    band_gmixes = []
+                    for band in range(nband):
+                        band_pars = mdata['band_pars'][mpars[i], :, band]
+                        band_gmix = ngmix.GMix(pars=band_pars)
+
+                        band_gmixes.append(band_gmix)
+                    gmixes.append(band_gmixes)
+
+                for band, obslist in enumerate(mbobs):
+                    m = self.mb_meds.mlist[band]
+                    for obs in obslist:
+                        image = obs.image.copy()
+
+                        if show:
+                            image_orig = obs.image.copy()
+                            nbrim_tot = image_orig*0
+
+                        meta = obs.meta
+                        jacobian = obs.jacobian
+
+                        for i in range(mpars.size):
+                            nbr_number = nbr_numbers[i]
+                            nbr_ind = nbr_number - 1
+
+                            assert m['number'][nbr_ind] == nbr_number
+
+                            gmix0 = gmixes[i][band]
+                            gmix_psf = obs.psf.gmix
+
+                            gmix = gmix0.convolve(gmix_psf)
+
+                            icut, = np.where(
+                                m['file_id'][nbr_ind] == meta['file_id']
+                            )
+
+                            if icut.size == 0:
+                                logger.info('nbr not found in cutout')
+                            else:
+                                icut = icut[0]
+                                nbr_orig_row = m['orig_row'][nbr_ind, icut]
+                                nbr_orig_col = m['orig_col'][nbr_ind, icut]
+
+                                row = nbr_orig_row - meta['orig_start_row']
+                                col = nbr_orig_col - meta['orig_start_col']
+
+                                # note pars are [v,u,g1,g2,...]
+                                v, u = jacobian(row, col)
+                                gmix.set_cen(v, u)
+                                nbrim = gmix.make_image(
+                                    image.shape,
+                                    jacobian=jacobian,
+                                )
+                                image -= nbrim
+
+                                if show:
+                                    nbrim_tot += nbrim
+
+                        if show:
+                            import images
+                            pim = np.flipud(np.rot90(coaddim, k=3))
+                            pseg = np.flipud(np.rot90(coaddseg, k=3))
+                            images.view_mosaic(
+                                [image_orig, image, pim,
+                                 pseg, nbrim_tot],
+                                titles=[
+                                    'orig image', 'corrected image', 'coadd',
+                                    'seg', 'nbr image',
+                                ],
+                                file='/astro/u/esheldon/www/tmp/plots/tmp.png',
+                            )
+                            if 'q' == input('hit a key (q to quit): '):
+                                raise KeyboardInterrupt('stopping')
+
+                        # this will reset the pixels array
+                        obs.set_image(image)
+
     def _set_weight(self, mbobs, index):
         """
         set the weight
@@ -898,27 +1070,29 @@ class Processor(object):
         c = self.config
         c['mof']['use_input_guesses'] = \
             c['mof'].get('use_input_guesses', False)
+
         parspace = self.config['parspace']
 
         kw = {}
-        if 'flux' in parspace or c['mof']['use_input_guesses']:
+
+        if ('flux' in parspace
+                or c['mof']['use_input_guesses']
+                or 'subtract_neighbors' in c['mof']):
+
             assert self.args.model_pars is not None, \
-                'for flux fitting send model pars'
+                ('for flux fitting, guesses, or subtracting '
+                 'neighbors send model pars')
 
             logger.info('reading model pars: %s' % self.args.model_pars)
             model_pars = fitsio.read(self.args.model_pars)
-
-            mm, mmeds = eu.numpy_util.match(
-                model_pars['id'],
-                self.mb_meds.mlist[0]['id'],
-            )
-            assert mm.size == model_pars.size, \
-                'some input pars did not match'
-
-            self.model_data = model_pars[mm]
+            self.model_data = self._match_meds(model_pars)
 
             if c['mof']['use_input_guesses']:
                 kw['guesses'] = self.model_data
+
+            if 'subtract_neighbors' in c['mof']:
+                wkeep, = np.where(self.model_data['flags'] == 0)
+                self.model_data = self.model_data[wkeep]
 
         if parspace == 'ngmix':
             self.fitter = fitting.MOFFitter(
@@ -953,6 +1127,36 @@ class Processor(object):
         else:
             raise ValueError('bad parspace "%s", should be '
                              '"ngmix","galsim","ngmix-flux","galsim-flux"')
+
+    def _match_meds(self, cat):
+        """
+        match the input catalot to the meds data.
+
+        First attempt to match by number then by id
+
+        We may want to maket the order configurable.
+        """
+
+        idname = self.config['match_field']
+        logger.info('matching catalogs based on "%s"' % idname)
+
+        mcat = self.mb_meds.mlist[0].get_cat()
+
+        if idname not in cat.dtype.names:
+            raise ValueError('match id field of %s not found in '
+                             'parameters catalog' % str(idname))
+        if idname not in mcat.dtype.names:
+            raise ValueError('match id field of %s not found in '
+                             'meds' % str(idname))
+
+        mcat, mmeds = eu.numpy_util.match(
+            cat[idname],
+            mcat[idname],
+        )
+
+        assert mcat.size == cat.size, 'some input pars objects did not match'
+
+        return cat[mcat]
 
     def _load_fofs(self):
         """

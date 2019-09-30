@@ -248,7 +248,7 @@ class MOFFitter(FitterBase):
 
         dofit = True
         try:
-            _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'])
 
             self._do_measure_all_psf_fluxes(mbobs_list)
 
@@ -693,7 +693,7 @@ class MOFFluxFitter(MOFFitter):
         mofc = self['mof']
 
         try:
-            _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'])
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -942,7 +942,7 @@ class MOFFluxFitterGS(MOFFitterGS):
             mbobs_list = [mbobs_list]
 
         try:
-            _fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'])
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -1066,7 +1066,7 @@ class MOFFluxFitterGS(MOFFitterGS):
         return dt
 
 
-def _fit_all_psfs(mbobs_list, psf_conf):
+def fit_all_psfs(mbobs_list, psf_conf):
     """
     fit all psfs in the input observations
     """
@@ -1104,6 +1104,10 @@ class AllPSFFitter(object):
 
 
 def _fit_one_psf(obs, pconf):
+    if obs.has_gmix():
+        logger.debug('not fitting psf, gmix already present')
+        return
+
     Tguess = 4.0*obs.jacobian.get_scale()**2
 
     if 'coellip' in pconf['model']:

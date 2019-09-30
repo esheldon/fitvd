@@ -279,6 +279,14 @@ def load_fofs(fof_filename):
         else:
             nbrs = None
 
+    if 'fof_id' in fofs.dtype.names:
+        new_names = []
+        for name in fofs.dtype.names:
+            if name == 'fof_id':
+                name = 'fofid'
+            new_names.append(name)
+        fofs.dtype.names = new_names
+
     return nbrs, fofs
 
 
