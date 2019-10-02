@@ -137,6 +137,21 @@ def get_collated_file(run, tilename=None, extra=None):
     )
 
 
+def get_shredder_file(shredx_run, tilename):
+    """
+    get the collated file name
+    """
+
+    ts = tilename.split('_')
+    if len(ts) == 2:
+        tilename = ts[0]
+
+    d = os.environ['SHREDDER_DIR']
+    d = os.path.join(d, 'outputs', shredx_run, 'collated')
+    f = '%s-%s.fits' % (shredx_run, tilename)
+    return os.path.join(d, f)
+
+
 def get_split_output(run, tilename, start, end, ext='fits'):
     """
     get the split output file

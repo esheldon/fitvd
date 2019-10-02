@@ -311,7 +311,7 @@ class MOFFitter(FitterBase):
 
         except NoDataError as err:
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
             res = {
                 'ntry': -1,
                 'main_flags': procflags.NO_DATA,
@@ -321,7 +321,7 @@ class MOFFitter(FitterBase):
         except BootPSFFailure as err:
             fitter = None
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
             res = {
                 'ntry': -1,
                 'main_flags': procflags.PSF_FAILURE,
@@ -731,7 +731,7 @@ class MOFFluxFitter(MOFFitter):
 
         except NoDataError as err:
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
             res = {
                 'ntry': -1,
                 'main_flags': procflags.NO_DATA,
@@ -741,7 +741,7 @@ class MOFFluxFitter(MOFFitter):
         except BootPSFFailure as err:
             fitter = None
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
             res = {
                 'ntry': -1,
                 'main_flags': procflags.PSF_FAILURE,
@@ -984,7 +984,7 @@ class MOFFluxFitterGS(MOFFitterGS):
 
         except NoDataError as err:
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
             res = {
                 'main_flags': procflags.NO_DATA,
                 'main_flagstr': procflags.get_flagname(procflags.NO_DATA),
@@ -993,7 +993,7 @@ class MOFFluxFitterGS(MOFFitterGS):
         except BootPSFFailure as err:
             fitter = None
             epochs_data = None
-            print(str(err))
+            logger.info(str(err))
 
             res = {
                 'main_flags': procflags.PSF_FAILURE,
@@ -1267,9 +1267,7 @@ def get_stamp_guesses(list_of_obs,
         #    T = mbo[0][0].psf.gmix.get_T()*1.2
         # psf_T = mbo[0][0].psf.gmix.get_T()
         # T = psf_T*0.25
-        # print("psf T:", psf_T)
         # T = 0.025
-        # print("guess T:", T)
         Tmeas = momres['T']
         T = 1.0/(1/Tmeas - 1/wt_T)
         if T < 0.0:
@@ -1325,6 +1323,8 @@ def get_stamp_guesses(list_of_obs,
             # note we take out scale**2 in DES images when
             # loading from MEDS so this isn't needed
             flux = band_meta['psf_flux']
+            if not np.isfinite(flux):
+                flux = 1.0
             low = flux
             high = flux*2.0
             flux_guess = rng.uniform(low=low, high=high)
@@ -1474,7 +1474,7 @@ def get_stamp_guesses_gs(list_of_obs,
             # scale = obslist[0].jacobian.scale
             # flux = band_meta['psf_flux']/scale**2
             flux = band_meta['psf_flux']
-            if flux < 1:
+            if flux < 1 or not np.isfinite(flux):
                 flux = 1.0
             flux_guess = flux*(1.0 + rng.uniform(low=-0.05, high=0.05))
 
@@ -1841,7 +1841,7 @@ class SpreadModel(object):
             spread_model = (
                 mod_data_sum/psf_data_sum - mod_psf_sum/psf_psf_sum
             )
-            print('spread_model:', spread_model)
+            logger.info('spread_model: %s' % spread_model)
 
         self._result = {
             'flags': flags,

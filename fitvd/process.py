@@ -384,7 +384,7 @@ class Processor(object):
 
         # note doing this after rescaling because the deblender was run
         # with scaling the images
-        if 'subtract_neighbors' in self.config['mof']:
+        if self.config['mof']['subtract_neighbors']:
             coaddseg = self.mb_meds.mlist[0].get_cutout(index, 0, type='seg')
             coaddim = self.mb_meds.mlist[0].get_cutout(index, 0)
             self._subtract_neighbors(mbobs, coaddseg, coaddim, index,
@@ -1028,10 +1028,16 @@ class Processor(object):
         with open(self.args.config) as fobj:
             self.config = yaml.load(fobj)
 
-        self.config['skip_first_epoch'] = \
-            self.config.get('skip_first_epoch', False)
-        self.config['image_flagnames_to_mask'] = \
-            self.config.get('image_flagnames_to_mask', None)
+        c = self.config
+
+        c['skip_first_epoch'] = c.get('skip_first_epoch', False)
+        c['image_flagnames_to_mask'] = c.get('image_flagnames_to_mask', None)
+
+        c['mof']['use_input_guesses'] = \
+            c['mof'].get('use_input_guesses', False)
+        c['mof']['subtract_neighbors'] = \
+            c['mof'].get('subtract_neighbors', False)
+
 
         self.config['max_fof_size'] = \
             self.config.get('max_fof_size', np.inf)
@@ -1068,16 +1074,13 @@ class Processor(object):
         """
 
         c = self.config
-        c['mof']['use_input_guesses'] = \
-            c['mof'].get('use_input_guesses', False)
-
         parspace = self.config['parspace']
 
         kw = {}
 
         if ('flux' in parspace
                 or c['mof']['use_input_guesses']
-                or 'subtract_neighbors' in c['mof']):
+                or c['mof']['subtract_neighbors']):
 
             assert self.args.model_pars is not None, \
                 ('for flux fitting, guesses, or subtracting '
@@ -1090,7 +1093,7 @@ class Processor(object):
             if c['mof']['use_input_guesses']:
                 kw['guesses'] = self.model_data
 
-            if 'subtract_neighbors' in c['mof']:
+            if c['mof']['subtract_neighbors']:
                 wkeep, = np.where(self.model_data['flags'] == 0)
                 self.model_data = self.model_data[wkeep]
 
