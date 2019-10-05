@@ -639,11 +639,24 @@ class CondorBatch(ShellBatch):
         }
 
         if 'model_pars_run' in self:
-            pars_file = files.get_collated_file(
-                self['model_pars_run'],
-                tilename,
-            )
+
+            run_type = self.get('model_pars_run_type', 'fitvd')
+            if run_type == 'fitvd':
+                pars_file = files.get_collated_file(
+                    self['model_pars_run'],
+                    tilename,
+                )
+            elif run_type == 'shredder':
+                pars_file = files.get_shredder_file(
+                    self['model_pars_run'],
+                    tilename,
+                )
+            else:
+                raise ValueError('bad run type: %s' % run_type)
+
             d['model_pars'] = '--model-pars=%s' % pars_file
+
+
         else:
             d['model_pars'] = ''
 
