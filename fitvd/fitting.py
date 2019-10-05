@@ -1100,10 +1100,25 @@ class AllPSFFitter(object):
             for obslist in mbobs:
                 for obs in obslist:
                     psf_obs = obs.get_psf()
-                    _fit_one_psf(psf_obs, self.psf_conf)
+
+                    if hasattr(self, 'last_res'):
+                        guess = self.last_res
+                    else:
+                        guess = None
+
+                    fitter = _fit_one_psf(psf_obs, self.psf_conf, guess=guess)
+
+                    if fitter is not None:
+                        # fitter None means we skipped the fit because the
+                        # gmix was already there
+                        if 'em' in self.psf_conf['model']:
+                            self.last_res = psf_obs.gmix.copy()
+                        else:
+                            res = fitter.get_result()
+                            self.last_res = res['pars']
 
 
-def _fit_one_psf(obs, pconf):
+def _fit_one_psf(obs, pconf, guess=None):
     if obs.has_gmix():
         logger.debug('not fitting psf, gmix already present')
         return
@@ -1136,17 +1151,20 @@ def _fit_one_psf(obs, pconf):
             pconf['lm_pars'],
         )
 
-    runner.go(ntry=pconf['ntry'])
+    runner.go(ntry=pconf['ntry'], guess=guess)
 
     psf_fitter = runner.fitter
     res = psf_fitter.get_result()
     obs.update_meta_data({'fitter': psf_fitter})
 
+    logger.debug('res: %s' % res)
     if res['flags'] == 0:
         gmix = psf_fitter.get_gmix()
         obs.set_gmix(gmix)
     else:
         raise BootPSFFailure("failed to fit psfs: %s" % str(res))
+
+    return psf_fitter
 
 
 class AllPSFFluxFitter(object):
