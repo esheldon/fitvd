@@ -1119,6 +1119,8 @@ class AllPSFFitter(object):
 
 
 def _fit_one_psf(obs, pconf, guess=None):
+    from ngmix.em import EM_MAXITER
+
     if obs.has_gmix():
         logger.debug('not fitting psf, gmix already present')
         return
@@ -1158,7 +1160,9 @@ def _fit_one_psf(obs, pconf, guess=None):
     obs.update_meta_data({'fitter': psf_fitter})
 
     logger.debug('res: %s' % res)
-    if res['flags'] == 0:
+
+    # generally maxiter isn't a problem
+    if res['flags'] == 0 or res['flags'] == EM_MAXITER:
         gmix = psf_fitter.get_gmix()
         obs.set_gmix(gmix)
     else:

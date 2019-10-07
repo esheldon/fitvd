@@ -735,22 +735,8 @@ class Processor(object):
 
         logger.info('subtracting neighbors')
         logger.info('fitting psfs')
-        try:
-            fitting.fit_all_psfs([mbobs], self.config['mof']['psf'])
-        except BootPSFFailure as err:
-            logger.info(str(err))
-            # We failed, so just get any fit so we can proceed.  This should be
-            # exceedingly rare.  Note we don't refit if a gmix is present, so
-            # this will just pick up the failure
 
-            pconf = deepcopy(self.config['mof']['psf'])
-            pconf['model'] = 'gauss'
-            pconf['lm_pars'] = {
-                'maxfev': 2000,
-                'ftol': 1.0e-5,
-                'xtol': 1.0e-5,
-            }
-            fitting.fit_all_psfs([mbobs], pconf)
+        fitting.fit_all_psfs([mbobs], self.config['mof']['psf'])
 
         nband = len(mbobs)
 
