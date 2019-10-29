@@ -168,14 +168,14 @@ class FoFBatchBase(dict):
         fof_band = self.run_conf['fof_band']
 
         if self.fit_conf.get('use_mask', False):
+            with_uvista = False
             uvista_bands = self.run_conf.get('uvista_bands', [])
             video_bands = self.run_conf.get('video_bands', [])
 
             if len(uvista_bands) != 0:
-                with_uvista = True
-            else:
-                with_uvista = False
-
+                use_uvista_mask = self.run_conf.get('use_uvista_mask', True)
+                if use_uvista_mask:
+                    with_uvista = True
 
             mask_file = desmasks.files.get_mask_file(
                 tilename,

@@ -1,5 +1,8 @@
 """
 processing framework
+
+TODO add shredder/shreds/fofx meta when subtracting neighbors, or get it from
+the file?
 """
 import numpy as np
 import logging
