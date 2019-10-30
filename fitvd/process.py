@@ -1067,6 +1067,8 @@ class Processor(object):
 
         kw = {}
 
+        model = self.config['mof'].get('model', None)
+
         if ('flux' in parspace
                 or c['mof']['use_input_guesses']
                 or c['mof']['subtract_neighbors']):
@@ -1087,14 +1089,22 @@ class Processor(object):
                 self.model_data = self.model_data[wkeep]
 
         if parspace == 'ngmix':
-            self.fitter = fitting.MOFFitter(
-                self.config,
-                self.mb_meds.nband,
-                self.rng,
-                **kw
-            )
+            if model is None:
+                self.fitter = fitting.PSFOnlyFitter(
+                    self.config,
+                    self.mb_meds.nband,
+                    self.rng,
+                    **kw
+                )
+
+            else:
+                self.fitter = fitting.MOFFitter(
+                    self.config,
+                    self.mb_meds.nband,
+                    self.rng,
+                    **kw
+                )
         elif parspace == 'galsim':
-            model = self.config['mof'].get('model', None)
             if model is None:
                 self.fitter = fitting.PSFOnlyFitterGS(
                     self.config,
