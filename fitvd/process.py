@@ -1094,12 +1094,22 @@ class Processor(object):
                 **kw
             )
         elif parspace == 'galsim':
-            self.fitter = fitting.MOFFitterGS(
-                self.config,
-                self.mb_meds.nband,
-                self.rng,
-                **kw
-            )
+            model = self.config['mof'].get('model', None)
+            if model is None:
+                self.fitter = fitting.PSFOnlyFitterGS(
+                    self.config,
+                    self.mb_meds.nband,
+                    self.rng,
+                    **kw
+                )
+
+            else:
+                self.fitter = fitting.MOFFitterGS(
+                    self.config,
+                    self.mb_meds.nband,
+                    self.rng,
+                    **kw
+                )
         elif parspace == 'ngmix-flux':
             self.fitter = fitting.MOFFluxFitter(
                 self.config,

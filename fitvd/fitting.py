@@ -1066,6 +1066,148 @@ class MOFFluxFitterGS(MOFFitterGS):
         return dt
 
 
+class PSFOnlyFitterGS(FitterBase):
+    """
+    just do psf flux fitting
+    """
+
+    def _setup(self):
+        """
+        set some useful values
+        """
+        pass
+
+    def go(self, mbobs_list, **kw):
+        """
+        fit psf fluxes
+
+        parameters
+        ----------
+        mbobs_list: list of MultiBandObsList
+            One for each object.  If it is a simple
+            MultiBandObsList it will be converted
+            to a list
+
+        returns
+        -------
+        data: ndarray
+            Array with all output fields
+        """
+        epochs_data = None
+
+        if not isinstance(mbobs_list, list):
+            mbobs_list = [mbobs_list]
+
+        try:
+            _measure_all_psf_fluxes_gs(mbobs_list)
+            res = {
+                'main_flags': 0,
+                'main_flagstr': '',
+            }
+
+        except NoDataError as err:
+            logger.info(str(err))
+            res = {
+                'main_flags': procflags.NO_DATA,
+                'main_flagstr': procflags.get_flagname(procflags.NO_DATA),
+            }
+
+        except BootPSFFailure as err:
+            fitter = None
+            logger.info(str(err))
+
+            res = {
+                'main_flags': procflags.PSF_FAILURE,
+                'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
+            }
+
+        data = self._get_output(
+            mbobs_list,
+            res,
+        )
+
+        return data, epochs_data
+
+    def _get_dtype(self):
+        nbtup = (self.nband, )
+
+        dt = [
+            ('id', 'i8'),
+            ('ra', 'f8'),
+            ('dec', 'f8'),
+            ('fof_id', 'i8'),  # fof id within image
+            ('fof_size', 'i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
+            ('flags', 'i4'),
+            ('flagstr', 'S18'),
+            ('badpix_frac', 'f4'),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
+        ]
+
+        return dt
+
+    def _get_struct(self, nobj):
+        dt = self._get_dtype()
+        st = np.zeros(nobj, dtype=dt)
+        st['flags'] = procflags.NO_ATTEMPT
+        st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
+        st['psf_flux_flags'] = procflags.NO_ATTEMPT
+
+        noset = [
+            'id',
+            'ra', 'dec',
+            'flags', 'flagstr',
+            'psf_flux_flags',
+            'fof_id', 'fof_size',
+            'mask_flags',
+        ]
+
+        for n in st.dtype.names:
+            if n not in noset:
+                if 'err' in n or 'cov' in n:
+                    st[n] = 9.999e9
+                else:
+                    st[n] = -9.999e9
+
+        return st
+
+    def _get_output(self, mbobs_list, main_res):
+
+        nobj = len(mbobs_list)
+        output = self._get_struct(nobj)
+
+        output['flags'] = main_res['main_flags']
+        output['flagstr'] = main_res['main_flagstr']
+
+        pn = Namer(front='psf')
+
+        for i in range(output.size):
+            t = output[i]
+            mbobs = mbobs_list[i]
+
+            t['badpix_frac'] = mbobs.meta['badpix_frac']
+
+            for band, obslist in enumerate(mbobs):
+                meta = obslist.meta
+                zp = meta['magzp_ref']
+
+                if 'psf_flux_flags' not in meta:
+                    continue
+
+                t['psf_flux_flags'][band] = meta['psf_flux_flags']
+                for name in ('flux', 'flux_err', 'flux_s2n'):
+                    t[pn(name)][band] = meta[pn(name)]
+
+                tflux = t[pn('flux')][band].clip(min=0.001)
+                t[pn('mag')][band] = get_mag(tflux, zp)
+
+        return output
+
+
 def fit_all_psfs(mbobs_list, psf_conf):
     """
     fit all psfs in the input observations
