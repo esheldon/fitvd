@@ -1065,6 +1065,124 @@ class MOFFluxFitterGS(MOFFitterGS):
 
         return dt
 
+class PSFOnlyFitterGS(FitterBase):
+    """
+    just do psf flux fitting
+    """
+
+    def _setup(self):
+        """
+        set some useful values
+        """
+        pass
+
+    def go(self, mbobs_list, **kw):
+        """
+        fit psf fluxes
+
+        parameters
+        ----------
+        mbobs_list: list of MultiBandObsList
+            One for each object.  If it is a simple
+            MultiBandObsList it will be converted
+            to a list
+
+        returns
+        -------
+        data: ndarray
+            Array with all output fields
+        """
+        epochs_data = None
+
+        if not isinstance(mbobs_list, list):
+            mbobs_list = [mbobs_list]
+
+        try:
+            _measure_all_psf_fluxes_gs(mbobs_list)
+
+        except NoDataError as err:
+            epochs_data = None
+            logger.info(str(err))
+            res = {
+                'main_flags': procflags.NO_DATA,
+                'main_flagstr': procflags.get_flagname(procflags.NO_DATA),
+            }
+
+        except BootPSFFailure as err:
+            fitter = None
+            epochs_data = None
+            logger.info(str(err))
+
+            res = {
+                'main_flags': procflags.PSF_FAILURE,
+                'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
+            }
+
+        reslist = fitter.get_result_list()
+
+        data = self._get_output(
+            fitter,
+            mbobs_list,
+            res,
+            reslist,
+        )
+
+        self._mof_fitter = fitter
+
+        return data, epochs_data
+
+    def get_npars(self):
+        """
+        number of pars we expect
+        """
+        return self.nband
+
+    def _set_mof_fitter_class(self):
+        assert self['use_kspace'] is False
+        self._mof_fitter_class = mof.galsimfit.GSMOFFlux
+
+    def _set_guess_func(self):
+        self._guess_func = get_stamp_flux_guesses_gs
+
+    def _get_dtype(self):
+        npars = self.npars
+        nband = self.nband
+        nbtup = (self.nband, )
+
+        # TODO: get psf hlr too and do ratio?
+        n = self.namer
+        dt = [
+            ('id', 'i8'),
+            ('ra', 'f8'),
+            ('dec', 'f8'),
+            ('fof_id', 'i8'),  # fof id within image
+            ('fof_size', 'i4'),  # fof group size
+            ('mask_flags', 'i4'),  # field masking not pixel
+            ('flags', 'i4'),
+            ('flagstr', 'S18'),
+            ('badpix_frac', 'f4'),
+            ('psf_g', 'f8', 2),
+            ('psf_T', 'f8'),
+            ('psf_flux_flags', 'i4', nbtup),
+            ('psf_flux', 'f8', nbtup),
+            ('psf_mag', 'f8', nbtup),
+            ('psf_flux_err', 'f8', nbtup),
+            ('psf_flux_s2n', 'f8', nbtup),
+            (n('flags'), 'i4'),
+            (n('deblend_flags'), 'i4'),
+            (n('nfev'), 'i4'),
+            (n('s2n'), 'f8'),
+            (n('pars'), 'f8', npars),
+            (n('pars_err'), 'f8', npars),
+            (n('pars_cov'), 'f8', (npars, npars)),
+            (n('flux'), 'f8', nbtup),
+            (n('mag'), 'f8', nbtup),
+            (n('flux_cov'), 'f8', (nband, nband)),
+            (n('flux_err'), 'f8', nbtup),
+        ]
+
+        return dt
+
 
 def fit_all_psfs(mbobs_list, psf_conf):
     """
