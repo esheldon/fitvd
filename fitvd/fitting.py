@@ -1065,6 +1065,7 @@ class MOFFluxFitterGS(MOFFitterGS):
 
         return dt
 
+
 class PSFOnlyFitterGS(FitterBase):
     """
     just do psf flux fitting
@@ -1099,9 +1100,12 @@ class PSFOnlyFitterGS(FitterBase):
 
         try:
             _measure_all_psf_fluxes_gs(mbobs_list)
+            res = {
+                'main_flags': 0,
+                'main_flagstr': '',
+            }
 
         except NoDataError as err:
-            epochs_data = None
             logger.info(str(err))
             res = {
                 'main_flags': procflags.NO_DATA,
@@ -1110,7 +1114,6 @@ class PSFOnlyFitterGS(FitterBase):
 
         except BootPSFFailure as err:
             fitter = None
-            epochs_data = None
             logger.info(str(err))
 
             res = {
@@ -1118,39 +1121,19 @@ class PSFOnlyFitterGS(FitterBase):
                 'main_flagstr': procflags.get_flagname(procflags.PSF_FAILURE),
             }
 
-        reslist = fitter.get_result_list()
-
         data = self._get_output(
             fitter,
             mbobs_list,
             res,
-            reslist,
         )
 
         self._mof_fitter = fitter
 
         return data, epochs_data
 
-    def get_npars(self):
-        """
-        number of pars we expect
-        """
-        return self.nband
-
-    def _set_mof_fitter_class(self):
-        assert self['use_kspace'] is False
-        self._mof_fitter_class = mof.galsimfit.GSMOFFlux
-
-    def _set_guess_func(self):
-        self._guess_func = get_stamp_flux_guesses_gs
-
     def _get_dtype(self):
-        npars = self.npars
-        nband = self.nband
         nbtup = (self.nband, )
 
-        # TODO: get psf hlr too and do ratio?
-        n = self.namer
         dt = [
             ('id', 'i8'),
             ('ra', 'f8'),
@@ -1161,27 +1144,71 @@ class PSFOnlyFitterGS(FitterBase):
             ('flags', 'i4'),
             ('flagstr', 'S18'),
             ('badpix_frac', 'f4'),
-            ('psf_g', 'f8', 2),
-            ('psf_T', 'f8'),
             ('psf_flux_flags', 'i4', nbtup),
             ('psf_flux', 'f8', nbtup),
             ('psf_mag', 'f8', nbtup),
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
-            (n('flags'), 'i4'),
-            (n('deblend_flags'), 'i4'),
-            (n('nfev'), 'i4'),
-            (n('s2n'), 'f8'),
-            (n('pars'), 'f8', npars),
-            (n('pars_err'), 'f8', npars),
-            (n('pars_cov'), 'f8', (npars, npars)),
-            (n('flux'), 'f8', nbtup),
-            (n('mag'), 'f8', nbtup),
-            (n('flux_cov'), 'f8', (nband, nband)),
-            (n('flux_err'), 'f8', nbtup),
         ]
 
         return dt
+
+    def _get_struct(self, nobj):
+        dt = self._get_dtype()
+        st = np.zeros(nobj, dtype=dt)
+        st['flags'] = procflags.NO_ATTEMPT
+        st['flagstr'] = procflags.get_flagname(procflags.NO_ATTEMPT)
+        st['psf_flux_flags'] = procflags.NO_ATTEMPT
+
+        noset = [
+            'id',
+            'ra', 'dec',
+            'flags', 'flagstr',
+            'psf_flux_flags',
+            'fof_id', 'fof_size',
+            'mask_flags',
+        ]
+
+        for n in st.dtype.names:
+            if n not in noset:
+                if 'err' in n or 'cov' in n:
+                    st[n] = 9.999e9
+                else:
+                    st[n] = -9.999e9
+
+        return st
+
+    def _get_output(self, mbobs_list, main_res):
+
+        nobj = len(mbobs_list)
+        output = self._get_struct(nobj)
+
+        output['flags'] = main_res['main_flags']
+        output['flagstr'] = main_res['main_flagstr']
+
+        pn = Namer(front='psf')
+
+        for i in range(output.size):
+            t = output[i]
+            mbobs = mbobs_list[i]
+
+            t['badpix_frac'] = mbobs.meta['badpix_frac']
+
+            for band, obslist in enumerate(mbobs):
+                meta = obslist.meta
+                zp = meta['magzp_ref']
+
+                if 'psf_flux_flags' not in meta:
+                    continue
+
+                t['psf_flux_flags'][band] = meta['psf_flux_flags']
+                for name in ('flux', 'flux_err', 'flux_s2n'):
+                    t[pn(name)][band] = meta[pn(name)]
+
+                tflux = t[pn('flux')][band].clip(min=0.001)
+                t[pn('mag')][band] = get_mag(tflux, zp)
+
+        return output
 
 
 def fit_all_psfs(mbobs_list, psf_conf):
