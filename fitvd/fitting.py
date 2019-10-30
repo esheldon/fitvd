@@ -1122,12 +1122,9 @@ class PSFOnlyFitterGS(FitterBase):
             }
 
         data = self._get_output(
-            fitter,
             mbobs_list,
             res,
         )
-
-        self._mof_fitter = fitter
 
         return data, epochs_data
 
