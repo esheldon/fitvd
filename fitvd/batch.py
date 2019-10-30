@@ -803,6 +803,8 @@ command: |
     bash %(script)s
 
 job_name: %(job_name)s
+N: 4
+mode: bycore1
 """
 
 _condor_head = r"""
