@@ -1490,7 +1490,8 @@ class AllPSFFluxFitter(object):
         fitter = ngmix.fitting.TemplateFluxFitter(
             obslist,
             do_psf=True,
-            normalize_psf=True,
+            # normalize_psf=True,
+            normalize_psf=False,
             cen=(0, 0),
         )
         fitter.go()
