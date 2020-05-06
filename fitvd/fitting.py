@@ -329,16 +329,27 @@ class MOFFitter(FitterBase):
             }
 
         if dofit:
-            reslist = fitter.get_result_list()
+            try:
+                reslist = fitter.get_result_list()
 
-            data = self._get_output(
-                fitter,
-                mbobs_list,
-                res,
-                reslist,
-            )
+                data = self._get_output(
+                    fitter,
+                    mbobs_list,
+                    res,
+                    reslist,
+                )
 
-            self._mof_fitter = fitter
+                self._mof_fitter = fitter
+
+            except GMixRangeError as err:
+                logger.info(str(err))
+                res = {
+                    'ntry': -1,
+                    'main_flags': procflags.OBJ_FAILURE,
+                    'main_flagstr': procflags.get_flagname(
+                        procflags.OBJ_FAILURE,
+                    ),
+                }
 
         return data, epochs_data
 
