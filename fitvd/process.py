@@ -8,6 +8,7 @@ import numpy as np
 import logging
 import time
 import ngmix
+from ngmix.gexceptions import BootPSFFailure
 import ngmix.medsreaders
 import fitsio
 import yaml
@@ -322,7 +323,6 @@ class Processor(object):
             if len(obslist) == 0:
                 return None, procflags.NO_DATA
 
-
         if self.config['skip_first_epoch']:
             mbobs, flags = self._remove_first_epoch(mbobs)
             if flags != 0:
@@ -390,8 +390,12 @@ class Processor(object):
         if self.config['mof']['subtract_neighbors']:
             coaddseg = self.mb_meds.mlist[0].get_cutout(index, 0, type='seg')
             coaddim = self.mb_meds.mlist[0].get_cutout(index, 0)
-            self._subtract_neighbors(mbobs, coaddseg, coaddim, index,
-                                     show=False)
+            try:
+                self._subtract_neighbors(mbobs, coaddseg, coaddim, index,
+                                         show=False)
+            except BootPSFFailure as err:
+                logger.info(str(err))
+                return None, procflags.PSF_FAILURE
 
         return mbobs, 0
 
@@ -733,13 +737,11 @@ class Processor(object):
         object cannot be subtracted.  If this is a possibility, you should
         use uberseg.
         """
-        from ngmix.gexceptions import BootPSFFailure
-        from copy import deepcopy
 
         logger.info('subtracting neighbors')
         logger.info('fitting psfs')
 
-        fitting.fit_all_psfs([mbobs], self.config['mof']['psf'])
+        fitting.fit_all_psfs([mbobs], self.config['mof']['psf'], self.rng)
 
         nband = len(mbobs)
 
@@ -1026,7 +1028,6 @@ class Processor(object):
             c['mof'].get('use_input_guesses', False)
         c['mof']['subtract_neighbors'] = \
             c['mof'].get('subtract_neighbors', False)
-
 
         self.config['max_fof_size'] = \
             self.config.get('max_fof_size', np.inf)

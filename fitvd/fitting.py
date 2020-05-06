@@ -248,7 +248,7 @@ class MOFFitter(FitterBase):
 
         dofit = True
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
 
             self._do_measure_all_psf_fluxes(mbobs_list)
 
@@ -693,7 +693,7 @@ class MOFFluxFitter(MOFFitter):
         mofc = self['mof']
 
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -942,7 +942,7 @@ class MOFFluxFitterGS(MOFFitterGS):
             mbobs_list = [mbobs_list]
 
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'])
+            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -1066,11 +1066,11 @@ class MOFFluxFitterGS(MOFFitterGS):
         return dt
 
 
-def fit_all_psfs(mbobs_list, psf_conf):
+def fit_all_psfs(mbobs_list, psf_conf, rng):
     """
     fit all psfs in the input observations
     """
-    fitter = AllPSFFitter(mbobs_list, psf_conf)
+    fitter = AllPSFFitter(mbobs_list, psf_conf, rng)
     fitter.go()
 
 
@@ -1091,9 +1091,10 @@ def _measure_all_psf_fluxes_gs(mbobs_list):
 
 
 class AllPSFFitter(object):
-    def __init__(self, mbobs_list, psf_conf):
+    def __init__(self, mbobs_list, psf_conf, rng):
         self.mbobs_list = mbobs_list
         self.psf_conf = psf_conf
+        self.rng = rng
 
     def go(self):
         for mbobs in self.mbobs_list:
@@ -1106,7 +1107,12 @@ class AllPSFFitter(object):
                     else:
                         guess = None
 
-                    fitter = _fit_one_psf(psf_obs, self.psf_conf, guess=guess)
+                    fitter = _fit_one_psf(
+                        psf_obs,
+                        self.psf_conf,
+                        self.rng,
+                        guess=guess,
+                    )
 
                     if fitter is not None:
                         # fitter None means we skipped the fit because the
@@ -1118,7 +1124,7 @@ class AllPSFFitter(object):
                             self.last_res = res['pars']
 
 
-def _fit_one_psf(obs, pconf, guess=None):
+def _fit_one_psf(obs, pconf, rng, guess=None):
     from ngmix.em import EM_MAXITER
 
     if obs.has_gmix():
@@ -1134,6 +1140,7 @@ def _fit_one_psf(obs, pconf, guess=None):
             Tguess,
             ngauss,
             pconf['lm_pars'],
+            rng=rng,
         )
 
     elif 'em' in pconf['model']:
@@ -1143,6 +1150,7 @@ def _fit_one_psf(obs, pconf, guess=None):
             Tguess,
             ngauss,
             pconf['em_pars'],
+            rng=rng,
         )
 
     else:
@@ -1151,6 +1159,7 @@ def _fit_one_psf(obs, pconf, guess=None):
             pconf['model'],
             Tguess,
             pconf['lm_pars'],
+            rng=rng,
         )
 
     runner.go(ntry=pconf['ntry'], guess=guess)
