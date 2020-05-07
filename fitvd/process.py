@@ -120,6 +120,11 @@ class Processor(object):
                 ntry=self.config['mof'].get('ntry', 1),
                 skip_fit=skip_fit,
             )
+            if output is None:
+                output, _ = self._get_empty_output(indices)
+                output['flags'] = procflags.OBJ_FAILURE
+                output['flagstr'] = get_flagname(procflags.OBJ_FAILURE)
+
             if skip_fit:
                 output['flags'] = procflags.FOF_TOO_LARGE
                 output['flagstr'] = \

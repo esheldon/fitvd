@@ -343,13 +343,9 @@ class MOFFitter(FitterBase):
 
             except GMixRangeError as err:
                 logger.info(str(err))
-                res = {
-                    'ntry': -1,
-                    'main_flags': procflags.OBJ_FAILURE,
-                    'main_flagstr': procflags.get_flagname(
-                        procflags.OBJ_FAILURE,
-                    ),
-                }
+
+                self._mof_fitter = None
+                data = None
 
         return data, epochs_data
 
