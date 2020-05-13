@@ -16,6 +16,7 @@ import esutil as eu
 import ngmix
 from ngmix import format_pars
 from ngmix.gexceptions import GMixRangeError
+from ngmix.em import EM_MAXITER
 
 from ngmix.gexceptions import BootPSFFailure
 
@@ -248,7 +249,9 @@ class MOFFitter(FitterBase):
 
         dofit = True
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
+            mbobs_list = fit_all_psfs_trim(
+                mbobs_list, self['mof']['psf'], self.rng,
+            )
 
             self._do_measure_all_psf_fluxes(mbobs_list)
 
@@ -700,7 +703,9 @@ class MOFFluxFitter(MOFFitter):
         mofc = self['mof']
 
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
+            mbobs_list = fit_all_psfs_trim(
+                mbobs_list, self['mof']['psf'], self.rng,
+            )
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -949,7 +954,11 @@ class MOFFluxFitterGS(MOFFitterGS):
             mbobs_list = [mbobs_list]
 
         try:
-            fit_all_psfs(mbobs_list, self['mof']['psf'], self.rng)
+            mbobs_list = fit_all_psfs_trim(
+                mbobs_list,
+                self['mof']['psf'],
+                self.rng,
+            )
             _measure_all_psf_fluxes(mbobs_list)
 
             epochs_data = self._get_epochs_output(mbobs_list)
@@ -1073,66 +1082,7 @@ class MOFFluxFitterGS(MOFFitterGS):
         return dt
 
 
-def fit_all_psfs(mbobs_list, psf_conf, rng):
-    """
-    fit all psfs in the input observations
-    """
-    fitter = AllPSFFitter(mbobs_list, psf_conf, rng)
-    fitter.go()
-
-
-def _measure_all_psf_fluxes(mbobs_list):
-    """
-    fit all psfs in the input observations
-    """
-    fitter = AllPSFFluxFitter(mbobs_list)
-    fitter.go()
-
-
-def _measure_all_psf_fluxes_gs(mbobs_list):
-    """
-    fit all psfs in the input observations
-    """
-    fitter = AllPSFFluxFitterGS(mbobs_list)
-    fitter.go()
-
-
-class AllPSFFitter(object):
-    def __init__(self, mbobs_list, psf_conf, rng):
-        self.mbobs_list = mbobs_list
-        self.psf_conf = psf_conf
-        self.rng = rng
-
-    def go(self):
-        for mbobs in self.mbobs_list:
-            for obslist in mbobs:
-                for obs in obslist:
-                    psf_obs = obs.get_psf()
-
-                    if hasattr(self, 'last_res'):
-                        guess = self.last_res
-                    else:
-                        guess = None
-
-                    fitter = _fit_one_psf(
-                        psf_obs,
-                        self.psf_conf,
-                        self.rng,
-                        guess=guess,
-                    )
-
-                    if fitter is not None:
-                        # fitter None means we skipped the fit because the
-                        # gmix was already there
-                        if 'em' in self.psf_conf['model']:
-                            self.last_res = psf_obs.gmix.copy()
-                        else:
-                            res = fitter.get_result()
-                            self.last_res = res['pars']
-
-
 def _fit_one_psf(obs, pconf, rng, guess=None):
-    from ngmix.em import EM_MAXITER
 
     if obs.has_gmix():
         logger.debug('not fitting psf, gmix already present')
@@ -1185,6 +1135,147 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         raise BootPSFFailure("failed to fit psfs: %s" % str(res))
 
     return psf_fitter
+
+
+def _fit_psf_obslist_trim(*, obslist, psf_conf, rng):
+    """
+    fit psfs, trimming out obs where no fit could be done
+
+    If there are no successes, BootPSFFailure is raised
+    """
+    last_res = None
+    new_obslist = ngmix.ObsList()
+    new_obslist.meta.update(obslist.meta)
+
+    for obs in obslist:
+        psf_obs = obs.get_psf()
+
+        if last_res is not None:
+            guess = last_res
+        else:
+            guess = None
+
+        try:
+            fitter = _fit_one_psf(
+                psf_obs,
+                psf_conf,
+                rng,
+                guess=guess,
+            )
+
+            if fitter is not None:
+                # fitter None means we skipped the fit because the
+                # gmix was already there
+                if 'em' in psf_conf['model']:
+                    last_res = psf_obs.gmix.copy()
+                else:
+                    res = fitter.get_result()
+                    last_res = res['pars']
+
+            new_obslist.append(obs)
+
+        except BootPSFFailure as err:
+            print(str(err))
+            pass
+
+    if len(new_obslist) == 0:
+        raise BootPSFFailure("failed to fit any psfs "
+                             "in obslist: %s" % str(res))
+
+    return new_obslist
+
+
+def _fit_psf_mbobs_trim(*, mbobs, psf_conf, rng):
+    new_mbobs = ngmix.MultiBandObsList()
+    new_mbobs.meta.update(mbobs.meta)
+    for obslist in mbobs:
+        new_obslist = _fit_psf_obslist_trim(
+            obslist=obslist,
+            psf_conf=psf_conf,
+            rng=rng,
+        )
+        new_mbobs.append(new_obslist)
+    return new_mbobs
+
+
+def fit_all_psfs_trim(mbobs_list, psf_conf, rng):
+    """
+    fit all psfs in the input observations, trimming out
+    observations where the fit failed
+    """
+
+    new_mbobs_list = []
+    for mbobs in mbobs_list:
+        new_mbobs = _fit_psf_mbobs_trim(
+            mbobs=mbobs,
+            psf_conf=psf_conf,
+            rng=rng,
+        )
+
+        new_mbobs_list.append(new_mbobs)
+
+    return new_mbobs_list
+
+
+def _measure_all_psf_fluxes(mbobs_list):
+    """
+    fit all psfs in the input observations
+    """
+    fitter = AllPSFFluxFitter(mbobs_list)
+    fitter.go()
+
+
+def _measure_all_psf_fluxes_gs(mbobs_list):
+    """
+    fit all psfs in the input observations
+    """
+    fitter = AllPSFFluxFitterGS(mbobs_list)
+    fitter.go()
+
+
+'''
+def fit_all_psfs(mbobs_list, psf_conf, rng):
+    """
+    fit all psfs in the input observations
+    """
+    fitter = AllPSFFitter(mbobs_list, psf_conf, rng)
+    fitter.go()
+
+
+class AllPSFFitter(object):
+    def __init__(self, mbobs_list, psf_conf, rng, trim=False):
+        self.mbobs_list = mbobs_list
+        self.psf_conf = psf_conf
+        self.trim = trim
+        self.rng = rng
+
+    def go(self):
+        for mbobs in self.mbobs_list:
+            for obslist in mbobs:
+                for obs in obslist:
+                    psf_obs = obs.get_psf()
+
+                    if hasattr(self, 'last_res'):
+                        guess = self.last_res
+                    else:
+                        guess = None
+
+                    fitter = _fit_one_psf(
+                        psf_obs,
+                        self.psf_conf,
+                        self.rng,
+                        guess=guess,
+                    )
+
+                    if fitter is not None:
+                        # fitter None means we skipped the fit because the
+                        # gmix was already there
+                        if 'em' in self.psf_conf['model']:
+                            self.last_res = psf_obs.gmix.copy()
+                        else:
+                            res = fitter.get_result()
+                            self.last_res = res['pars']
+'''
 
 
 class AllPSFFluxFitter(object):

@@ -396,8 +396,11 @@ class Processor(object):
             coaddseg = self.mb_meds.mlist[0].get_cutout(index, 0, type='seg')
             coaddim = self.mb_meds.mlist[0].get_cutout(index, 0)
             try:
-                self._subtract_neighbors(mbobs, coaddseg, coaddim, index,
-                                         show=False)
+                # we may trim the list here if we could not fit the psfs
+                mbobs = self._subtract_neighbors(
+                    mbobs, coaddseg, coaddim, index,
+                    show=False,
+                )
             except BootPSFFailure as err:
                 logger.info(str(err))
                 return None, procflags.PSF_FAILURE
@@ -729,7 +732,7 @@ class Processor(object):
 
         return new_mbobs, 0
 
-    def _subtract_neighbors(self, mbobs, coaddseg, coaddim, index,
+    def _subtract_neighbors(self, input_mbobs, coaddseg, coaddim, index,
                             show=False):
         """
         subtract neighbors from the images
@@ -746,7 +749,12 @@ class Processor(object):
         logger.info('subtracting neighbors')
         logger.info('fitting psfs')
 
-        fitting.fit_all_psfs([mbobs], self.config['mof']['psf'], self.rng)
+        new_mbobs_list = fitting.fit_all_psfs_trim(
+            [input_mbobs],
+            self.config['mof']['psf'],
+            self.rng,
+        )
+        mbobs = new_mbobs_list[0]
 
         nband = len(mbobs)
 
@@ -754,16 +762,6 @@ class Processor(object):
         # observation is in slot 0, the coadd
 
         number = self.mb_meds.mlist[0]['number'][index]
-
-        if False:
-            # import images
-            import fofx
-            wthis = np.where(coaddseg == number)
-            assert wthis[0].size > 0
-
-            plt = fofx.plot_seg(coaddseg)
-            plt.write_img(800, 800, '/astro/u/esheldon/www/tmp/plots/tmp.png')
-            # images.view(seg, file='/astro/u/esheldon/www/tmp/plots/tmp.png')
 
         w = np.where(
             (coaddseg != 0)
@@ -867,6 +865,7 @@ class Processor(object):
 
                         # this will reset the pixels array
                         obs.set_image(image)
+        return mbobs
 
     def _set_weight(self, mbobs, index):
         """
