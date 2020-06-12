@@ -1179,8 +1179,7 @@ def _fit_psf_obslist_trim(*, obslist, psf_conf, rng):
             pass
 
     if len(new_obslist) == 0:
-        raise BootPSFFailure("failed to fit any psfs "
-                             "in obslist: %s" % str(res))
+        raise BootPSFFailure("failed to fit any psfs in obslist")
 
     return new_obslist
 
