@@ -1088,8 +1088,6 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         logger.debug('not fitting psf, gmix already present')
         return
 
-    assert pconf['model'] == 'coellip5'
-
     if 'coellip' in pconf['model']:
         fwhm_guess = 1.5
         Tguess = ngmix.moments.fwhm_to_T(fwhm_guess)
