@@ -405,6 +405,14 @@ class Processor(object):
                 logger.info(str(err))
                 return None, procflags.PSF_FAILURE
 
+        for obslist in mbobs:
+            for obs in obslist:
+                pvar = util.get_boundary_variance(obs.psf.image)
+                if pvar > 0:
+                    with obs.psf.writeable():
+                        # set pixels is run upon leaving the context
+                        obs.psf.weight[:, :] = 1.0/pvar
+                        print("noise:", np.sqrt(pvar))
         return mbobs, 0
 
     def _rescale_images_for_ngmix(self, mbobs):
@@ -516,8 +524,8 @@ class Processor(object):
                 for iepoch, obs in enumerate(obslist):
                     # this will force an update of the pixels list
                     try:
-                        obs.set_image(imlist[i], update_pixels=False)
-                        obs.set_weight(wtlist[i], update_pixels=False)
+                        obs.set_image(imlist[iepoch], update_pixels=False)
+                        obs.set_weight(wtlist[iepoch], update_pixels=False)
                         obs.update_pixels()
                         new_obslist.append(obs)
                     except ngmix.GMixFatalError:

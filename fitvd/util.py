@@ -1,4 +1,5 @@
 import sys
+from numba import njit
 import logging
 import numpy as np
 import ngmix
@@ -209,3 +210,24 @@ def check_blacklist(mbobs, blacklist):
         new_mbobs.append(new_obslist)
 
     return new_mbobs
+
+
+@njit
+def get_boundary_variance(im, width=2):
+    nrow, ncol = im.shape
+
+    psum = 0.0
+    p2sum = 0.0
+
+    num = 0
+    for row in range(nrow):
+        for col in range(ncol):
+            if (row < width or row >= nrow-width or
+                    col < width or col >= ncol-width):
+                psum += im[row, col]
+                p2sum += im[row, col]**2
+                num += 1
+
+    mean = psum/num
+    var = p2sum/num - mean**2
+    return var
