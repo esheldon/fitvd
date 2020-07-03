@@ -16,7 +16,6 @@ import yaml
 import logging
 import fitsio
 import meds
-import desmasks
 from . import split
 from . import files
 from . import fofs
@@ -160,6 +159,8 @@ class FoFBatchBase(dict):
         """
         write the script to make the fof groups
         """
+        import desmasks
+
         fof_file = files.get_fof_file(self['run'], tilename)
         plot_file = fof_file.replace('.fits', '.png')
 

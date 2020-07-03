@@ -117,14 +117,16 @@ def zero_bitmask_in_weight(mbobs, flags2zero):
                     bmask = obs.bmask
                     w = np.where((bmask & flags2zero) != 0)
                     if w[0].size > 0:
-                        weight = obs.weight
-                        logging.debug('band %d epoch %d zeroing %d/%d in '
-                                      'weight' %
-                                      (band, epoch, w[0].size, bmask.size))
-                        weight[w] = 0.0
+                        with obs.writeable():
+                            # update_pixels will be run on exiting the context
+                            # weight = obs.weight
+                            logging.debug('band %d epoch %d zeroing %d/%d in '
+                                          'weight' %
+                                          (band, epoch, w[0].size, bmask.size))
+                            obs.weight[w] = 0.0
 
-                        # trigger rebuild of pixels
-                        obs.weight = weight
+                            # trigger rebuild of pixels
+                            # obs.weight = weight
                 new_obslist.append(obs)
             except ngmix.GMixFatalError:
                 logging.info('band %d epoch %d all zero weight after '

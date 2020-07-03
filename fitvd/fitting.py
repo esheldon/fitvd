@@ -1088,9 +1088,13 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         logger.debug('not fitting psf, gmix already present')
         return
 
-    Tguess = 4.0*obs.jacobian.get_scale()**2
+    assert pconf['model'] == 'coellip5'
 
     if 'coellip' in pconf['model']:
+        fwhm_guess = 1.5
+        Tguess = ngmix.moments.fwhm_to_T(fwhm_guess)
+        Tguess *= rng.uniform(low=0.9, high=1.1)
+
         ngauss = ngmix.bootstrap.get_coellip_ngauss(pconf['model'])
         runner = ngmix.bootstrap.PSFRunnerCoellip(
             obs,
@@ -1101,6 +1105,7 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         )
 
     elif 'em' in pconf['model']:
+        Tguess = 4.0*obs.jacobian.get_scale()**2
         ngauss = ngmix.bootstrap.get_em_ngauss(pconf['model'])
         runner = ngmix.bootstrap.EMRunner(
             obs,
@@ -1111,6 +1116,7 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         )
 
     else:
+        Tguess = 4.0*obs.jacobian.get_scale()**2
         runner = ngmix.bootstrap.PSFRunner(
             obs,
             pconf['model'],
