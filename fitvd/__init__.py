@@ -1,3 +1,4 @@
+# flake8: noqa
 from . import fofs
 from . import masks
 from . import fitting
