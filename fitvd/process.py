@@ -338,6 +338,14 @@ class Processor(object):
             if mbobs is None:
                 return None, procflags.NO_DATA
 
+        if self.config['image_flagnames_to_mask'] is not None:
+            mbobs, flags = util.zero_bitmask_in_weight(
+                mbobs,
+                self.config['image_flagvals_to_mask'],
+            )
+            if flags != 0:
+                return None, flags
+
         # need to do this *before* trimming
         if self.config['reject_outliers']:
             mbobs, flags = self._reject_outliers(mbobs)
@@ -346,14 +354,6 @@ class Processor(object):
 
         if 'trim_images' in self.config:
             mbobs, flags = self._trim_images(mbobs, index)
-            if flags != 0:
-                return None, flags
-
-        if self.config['image_flagnames_to_mask'] is not None:
-            mbobs, flags = util.zero_bitmask_in_weight(
-                mbobs,
-                self.config['image_flagvals_to_mask'],
-            )
             if flags != 0:
                 return None, flags
 
@@ -412,7 +412,7 @@ class Processor(object):
                     with obs.psf.writeable():
                         # set pixels is run upon leaving the context
                         obs.psf.weight[:, :] = 1.0/pvar
-                        print("noise:", np.sqrt(pvar))
+
         return mbobs, 0
 
     def _rescale_images_for_ngmix(self, mbobs):
@@ -1033,7 +1033,7 @@ class Processor(object):
         """
         logger.info('loading config: %s' % self.args.config)
         with open(self.args.config) as fobj:
-            self.config = yaml.load(fobj)
+            self.config = yaml.load(fobj, Loader=yaml.SafeLoader)
 
         c = self.config
 
