@@ -15,10 +15,8 @@ import numpy as np
 import yaml
 import logging
 import fitsio
-import meds
 from . import split
 from . import files
-from . import fofs
 
 logger = logging.getLogger(__name__)
 
@@ -657,7 +655,6 @@ class CondorBatch(ShellBatch):
 
             d['model_pars'] = '--model-pars=%s' % pars_file
 
-
         else:
             d['model_pars'] = ''
 
@@ -670,7 +667,6 @@ class CondorBatch(ShellBatch):
             d['blacklist'] = '--blacklist=%s' % self.args.blacklist
         else:
             d['blacklist'] = ''
-
 
         text = _condor_master_template % d
         master_script = files.get_condor_master_path(self['run'], tilename)
@@ -926,7 +922,6 @@ def _get_objmask_file(run_conf, tile_conf, tilename_full):
     returns a dict keyed by tilename, holding a list of
     meds files for each
     """
-    fi = {}
 
     video_bands = run_conf.get('video_bands', [])
     assert len(video_bands) != 0, 'need video bands to get objmask'
