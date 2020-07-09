@@ -16,28 +16,6 @@ def get_mean_aper8_flux_ratio_obslist(obslist):
         aper8_flux_ratio_sum += rat*twsum
         wsum += twsum
 
-        print("ratio:", rat)
-        if True or rat < 0.7:
-            from espy import images
-            from matplotlib import pyplot as plt
-            model_im = obs.psf.gmix.make_image(obs.psf.image.shape, jacobian=obs.psf.jacobian)
-            psf_r, pim = images.get_profile(obs.psf.image)
-            model_r, model_pim = images.get_profile(model_im)
-
-            # plt.scatter(psf_r, pim)
-            # plt.scatter(model_r, model_pim)
-            # plt.ylim(-0.001, 0.001)
-            # plt.show()
-
-            plt.ylim(1.0e-5, 0.004)
-            plt.yscale("log")
-            plt.scatter(psf_r, pim)
-            plt.scatter(model_r, model_pim)
-            plt.show()
-
-            # plt.imshow(obs.psf.image)
-            # plt.show()
-
     if wsum <= 0.0:
         aper8_flux_ratio = 1.0
     else:
