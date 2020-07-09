@@ -338,6 +338,14 @@ class Processor(object):
             if mbobs is None:
                 return None, procflags.NO_DATA
 
+        if self.config['image_flagnames_to_mask'] is not None:
+            mbobs, flags = util.zero_bitmask_in_weight(
+                mbobs,
+                self.config['image_flagvals_to_mask'],
+            )
+            if flags != 0:
+                return None, flags
+
         # need to do this *before* trimming
         if self.config['reject_outliers']:
             mbobs, flags = self._reject_outliers(mbobs)
@@ -346,14 +354,6 @@ class Processor(object):
 
         if 'trim_images' in self.config:
             mbobs, flags = self._trim_images(mbobs, index)
-            if flags != 0:
-                return None, flags
-
-        if self.config['image_flagnames_to_mask'] is not None:
-            mbobs, flags = util.zero_bitmask_in_weight(
-                mbobs,
-                self.config['image_flagvals_to_mask'],
-            )
             if flags != 0:
                 return None, flags
 
@@ -405,23 +405,33 @@ class Processor(object):
                 logger.info(str(err))
                 return None, procflags.PSF_FAILURE
 
+        for obslist in mbobs:
+            for obs in obslist:
+                pvar = util.get_boundary_variance(obs.psf.image)
+                if pvar > 0:
+                    with obs.psf.writeable():
+                        # set pixels is run upon leaving the context
+                        obs.psf.weight[:, :] = 1.0/pvar
+
         return mbobs, 0
 
     def _rescale_images_for_ngmix(self, mbobs):
         for band, obslist in enumerate(mbobs):
             # fudge for ngmix working in surface brightness
             for obs in obslist:
-                pixel_scale2 = obs.jacobian.get_scale()**2
-                pixel_scale4 = pixel_scale2*pixel_scale2
+                with obs.writeable():
+                    # update_pixels will be run on exiting the context
+                    pixel_scale2 = obs.jacobian.get_scale()**2
+                    pixel_scale4 = pixel_scale2*pixel_scale2
 
-                image = obs.image
-                weight = obs.weight
+                    # image = obs.image
+                    # weight = obs.weight
 
-                image *= 1/pixel_scale2
-                weight *= pixel_scale4
+                    obs.image[:, :] *= 1/pixel_scale2
+                    obs.weight[:, :] *= pixel_scale4
 
-                obs.set_image(image, update_pixels=False)
-                obs.set_weight(weight)
+                    # obs.set_image(image, update_pixels=False)
+                    # obs.set_weight(weight)
 
     def _add_meta(self, mbobs, index):
         for band, obslist in enumerate(mbobs):
@@ -498,8 +508,8 @@ class Processor(object):
             imlist = []
             wtlist = []
             for obs in obslist:
-                imlist.append(obs.image)
-                wtlist.append(obs.weight)
+                imlist.append(obs.image.copy())
+                wtlist.append(obs.weight.copy())
 
             nreject = meds.reject_outliers(imlist, wtlist)
             if nreject > 0:
@@ -511,9 +521,11 @@ class Processor(object):
 
                 new_obslist = ngmix.ObsList()
                 new_obslist.meta.update(obslist.meta)
-                for obs in obslist:
+                for iepoch, obs in enumerate(obslist):
                     # this will force an update of the pixels list
                     try:
+                        obs.set_image(imlist[iepoch], update_pixels=False)
+                        obs.set_weight(wtlist[iepoch], update_pixels=False)
                         obs.update_pixels()
                         new_obslist.append(obs)
                     except ngmix.GMixFatalError:
@@ -1021,7 +1033,7 @@ class Processor(object):
         """
         logger.info('loading config: %s' % self.args.config)
         with open(self.args.config) as fobj:
-            self.config = yaml.load(fobj)
+            self.config = yaml.load(fobj, Loader=yaml.SafeLoader)
 
         c = self.config
 

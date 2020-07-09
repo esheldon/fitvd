@@ -1,4 +1,5 @@
 import sys
+from numba import njit
 import logging
 import numpy as np
 import ngmix
@@ -117,14 +118,16 @@ def zero_bitmask_in_weight(mbobs, flags2zero):
                     bmask = obs.bmask
                     w = np.where((bmask & flags2zero) != 0)
                     if w[0].size > 0:
-                        weight = obs.weight
-                        logging.debug('band %d epoch %d zeroing %d/%d in '
-                                      'weight' %
-                                      (band, epoch, w[0].size, bmask.size))
-                        weight[w] = 0.0
+                        with obs.writeable():
+                            # update_pixels will be run on exiting the context
+                            # weight = obs.weight
+                            logging.debug('band %d epoch %d zeroing %d/%d in '
+                                          'weight' %
+                                          (band, epoch, w[0].size, bmask.size))
+                            obs.weight[w] = 0.0
 
-                        # trigger rebuild of pixels
-                        obs.weight = weight
+                            # trigger rebuild of pixels
+                            # obs.weight = weight
                 new_obslist.append(obs)
             except ngmix.GMixFatalError:
                 logging.info('band %d epoch %d all zero weight after '
@@ -207,3 +210,24 @@ def check_blacklist(mbobs, blacklist):
         new_mbobs.append(new_obslist)
 
     return new_mbobs
+
+
+@njit
+def get_boundary_variance(im, width=2):
+    nrow, ncol = im.shape
+
+    psum = 0.0
+    p2sum = 0.0
+
+    num = 0
+    for row in range(nrow):
+        for col in range(ncol):
+            if (row < width or row >= nrow-width or
+                    col < width or col >= ncol-width):
+                psum += im[row, col]
+                p2sum += im[row, col]**2
+                num += 1
+
+    mean = psum/num
+    var = p2sum/num - mean**2
+    return var

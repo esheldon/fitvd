@@ -364,59 +364,10 @@ def compare_images(im1_in, im2_in, wt_in, **keys):
     label1 = keys.get('label1', 'im1')
     label2 = keys.get('label2', 'im2')
 
-    """
-    wbad = np.where(wt <= 0.0)
-    if wbad[0].size > 0:
-        wt
-    """
-
     resid = (im1_in - im2_in)
-    # print('noiseval:', noiseval, 'std resid:', resid.std(), 'noise std:',
-    #       noise.std())
-
-    # im2 = im2_in + noise
-    # im2 = im2_in
-
-    # maxval = max(im1_in.max(), im2.max())
-    # minval = 0.1*noiseval
-    minval = 0.0
 
     im1 = im1_in
     im2 = im2_in
-
-    """
-    im1 = im1_in.clip(min=minval)
-    im2 = im2_in.clip(min=minval)
-
-    # np.log(im1, out=im1)
-    # np.log(im2, out=im2)
-
-    # im1 -= im1.min()
-    # im2 -= im2.min()
-
-    scale = 0.01
-    nonlinear = 0.12
-
-    im1 *= scale
-    im2 *= scale
-
-    fac = 1.0/nonlinear
-    I1 = fac * im1
-    I2 = fac * im2
-
-    w = np.where(I1 <= 0)
-    if w[0].size > 0:
-        I1[w] = 1./3. # value doesn't matter images are zero
-    w = np.where(I2 <= 0)
-    if w[0].size > 0:
-        I2[w] = 1./3. # value doesn't matter images are zero
-
-    f1 = np.arcsinh(I1)/I1
-    f2 = np.arcsinh(I2)/I2
-
-    im1 *= f1
-    im2 *= f2
-    """
 
     cen = [(im1.shape[0]-1)/2., (im1.shape[1]-1)/2.]
 

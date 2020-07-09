@@ -21,6 +21,7 @@ from ngmix.em import EM_MAXITER
 from ngmix.gexceptions import BootPSFFailure
 
 from .util import Namer, NoDataError
+from .apertures import get_mean_aper8_flux_ratio_obslist
 from . import procflags
 
 import mof
@@ -453,11 +454,19 @@ class MOFFitter(FitterBase):
             ('badpix_frac', 'f4'),
             ('psf_g', 'f8', 2),
             ('psf_T', 'f8'),
+
             ('psf_flux_flags', 'i4', nbtup),
             ('psf_flux', 'f8', nbtup),
             ('psf_mag', 'f8', nbtup),
             ('psf_flux_err', 'f8', nbtup),
             ('psf_flux_s2n', 'f8', nbtup),
+
+            ('psf_flux_ratio_aper8', 'f8', nbtup),
+            ('psf_flux_aper8', 'f8', nbtup),
+            ('psf_mag_aper8', 'f8', nbtup),
+            ('psf_flux_err_aper8', 'f8', nbtup),
+            ('psf_flux_s2n_aper8', 'f8', nbtup),
+
             (n('flags'), 'i4'),
             (n('deblend_flags'), 'i4'),
             (n('ntry'), 'i2'),
@@ -543,6 +552,7 @@ class MOFFitter(FitterBase):
 
         n = self.namer
         pn = Namer(front='psf')
+        pn8 = Namer(front='psf', back='aper8')
 
         if 'flags' in main_res:
             output[n('flags')] = main_res['flags']
@@ -565,9 +575,15 @@ class MOFFitter(FitterBase):
                 t['psf_flux_flags'][band] = meta['psf_flux_flags']
                 for name in ('flux', 'flux_err', 'flux_s2n'):
                     t[pn(name)][band] = meta[pn(name)]
+                    t[pn8(name)][band] = meta[pn8(name)]
 
                 tflux = t[pn('flux')][band].clip(min=0.001)
                 t[pn('mag')][band] = get_mag(tflux, zp)
+
+                tflux8 = t[pn8('flux')][band].clip(min=0.001)
+                t[pn8('mag')][band] = get_mag(tflux8, zp)
+
+                t[pn8('flux_ratio')][band] = meta[pn8('flux_ratio')]
 
         for i, res in enumerate(reslist):
             t = output[i]
@@ -1088,9 +1104,11 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         logger.debug('not fitting psf, gmix already present')
         return
 
-    Tguess = 4.0*obs.jacobian.get_scale()**2
-
     if 'coellip' in pconf['model']:
+        fwhm_guess = 1.5
+        Tguess = ngmix.moments.fwhm_to_T(fwhm_guess)
+        Tguess *= rng.uniform(low=0.9, high=1.1)
+
         ngauss = ngmix.bootstrap.get_coellip_ngauss(pconf['model'])
         runner = ngmix.bootstrap.PSFRunnerCoellip(
             obs,
@@ -1101,6 +1119,7 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         )
 
     elif 'em' in pconf['model']:
+        Tguess = 4.0*obs.jacobian.get_scale()**2
         ngauss = ngmix.bootstrap.get_em_ngauss(pconf['model'])
         runner = ngmix.bootstrap.EMRunner(
             obs,
@@ -1111,6 +1130,7 @@ def _fit_one_psf(obs, pconf, rng, guess=None):
         )
 
     else:
+        Tguess = 4.0*obs.jacobian.get_scale()**2
         runner = ngmix.bootstrap.PSFRunner(
             obs,
             pconf['model'],
@@ -1295,6 +1315,14 @@ class AllPSFFluxFitter(object):
 
                 for n in ('psf_flux', 'psf_flux_err', 'psf_flux_s2n'):
                     meta[n] = res[n.replace('psf_', '')]
+
+                aper8_flux_ratio = get_mean_aper8_flux_ratio_obslist(obslist)
+                meta["psf_flux_aper8"] = meta["psf_flux"]*aper8_flux_ratio
+                meta["psf_flux_err_aper8"] = (
+                    meta["psf_flux_err"]*aper8_flux_ratio
+                )
+                meta["psf_flux_s2n_aper8"] = meta["psf_flux_s2n"]
+                meta["psf_flux_ratio_aper8"] = aper8_flux_ratio
 
     def _fit_psf_flux(self, band, obslist):
         fitter = ngmix.fitting.TemplateFluxFitter(
