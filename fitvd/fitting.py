@@ -334,16 +334,20 @@ class MOFFitter(FitterBase):
 
         if dofit:
             try:
-                reslist = fitter.get_result_list()
+                if fitter is None:
+                    data = None
+                    self._mof_fitter = None
+                else:
+                    reslist = fitter.get_result_list()
 
-                data = self._get_output(
-                    fitter,
-                    mbobs_list,
-                    res,
-                    reslist,
-                )
+                    data = self._get_output(
+                        fitter,
+                        mbobs_list,
+                        res,
+                        reslist,
+                    )
 
-                self._mof_fitter = fitter
+                    self._mof_fitter = fitter
 
             except GMixRangeError as err:
                 logger.info(str(err))
