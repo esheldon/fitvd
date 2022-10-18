@@ -7,7 +7,7 @@ scripts = [s for s in scripts if '~' not in s]
 
 setup(
     name="fitvd",
-    version="v0.9.16",
+    version="0.9.17",
     description="Code to fit models to objects in DES+VISTA using MOF",
     license="GPL",
     author="Erin Scott Sheldon",
